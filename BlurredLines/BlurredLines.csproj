@@ -32,6 +32,10 @@
         <WarningLevel>4</WarningLevel>
     </PropertyGroup>
     <ItemGroup>
+        <Reference Include="CommandLine, Version=2.5.0.0, Culture=neutral, PublicKeyToken=5a870481e358d379">
+          <HintPath>..\packages\CommandLineParser.2.5.0\lib\net461\CommandLine.dll</HintPath>
+          <Private>True</Private>
+        </Reference>
         <Reference Include="mscorlib" />
         <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed">
           <HintPath>..\packages\Newtonsoft.Json.12.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
@@ -72,6 +76,10 @@
         <Reference Include="System.Xml" />
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="Commands\BlurCommand.cs" />
+        <Compile Include="Commands\BlurOptions.cs" />
+        <Compile Include="Commands\InfoCommand.cs" />
+        <Compile Include="Commands\InfoOptions.cs" />
         <Compile Include="Processing\DeviceInfoResult.cs" />
         <Compile Include="Processing\ErrorCodeExtensions.cs" />
         <Compile Include="Processing\PlatformInfoResult.cs" />

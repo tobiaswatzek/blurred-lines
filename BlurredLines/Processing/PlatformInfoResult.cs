@@ -2,6 +2,9 @@ using System.Collections.Generic;
 
 namespace BlurredLines.Processing
 {
+    /// <summary>
+    ///     Information about a platform.
+    /// </summary>
     public class PlatformInfoResult
     {
         public string Profile { get; set; }

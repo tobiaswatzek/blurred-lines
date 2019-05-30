@@ -5,9 +5,16 @@ using OpenCL.Net;
 
 namespace BlurredLines.Processing
 {
+    /// <summary>
+    ///     Retrieve basic system information of the OpenCL platforms and devices.
+    /// </summary>
     public static class SystemInformation
     {
-      
+        /// <summary>
+        ///     Retrieve information about all platforms and devices of the system.
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static IEnumerable<PlatformInfoResult> GetPlatformInfos()
         {
             var platforms = Cl.GetPlatformIDs(out var error);
@@ -18,12 +25,15 @@ namespace BlurredLines.Processing
                 throw new InvalidOperationException("No OpenCL platform available.");
             }
 
-            Console.WriteLine($"Number of platforms: {platforms.Length}");
-
             return platforms.Select(GetPlatformInfo);
         }
 
-        private static PlatformInfoResult GetPlatformInfo(Platform platform)
+        /// <summary>
+        ///     Retrieve information about the given <see cref="Platform"/>.
+        /// </summary>
+        /// <param name="platform"></param>
+        /// <returns></returns>
+        public static PlatformInfoResult GetPlatformInfo(Platform platform)
         {
             var info = new PlatformInfoResult
             {
@@ -38,7 +48,6 @@ namespace BlurredLines.Processing
             error.ThrowOnError();
             if (devices.Length == 0)
             {
-                Console.Error.WriteLine($"No devices found for platform '{info.Name}'.");
                 return info;
             }
 
@@ -47,7 +56,12 @@ namespace BlurredLines.Processing
         }
 
 
-        private static DeviceInfoResult GetDeviceInfo(Device device)
+        /// <summary>
+        ///     Retrieve information about the given <see cref="Device"/>.
+        /// </summary>
+        /// <param name="device"></param>
+        /// <returns></returns>
+        public static DeviceInfoResult GetDeviceInfo(Device device)
         {
             return new DeviceInfoResult
             {

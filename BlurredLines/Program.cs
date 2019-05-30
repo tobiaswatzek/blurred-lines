@@ -1,15 +1,26 @@
 ﻿using System;
 using System.IO;
+using BlurredLines.Commands;
 using BlurredLines.Processing;
+using CommandLine;
 using Newtonsoft.Json;
-using SixLabors.ImageSharp;
 
 namespace BlurredLines
 {
     internal class Program
     {
-        public static void Main(string[] args)
+        public static int Main(string[] args)
         {
+            return CommandLine.Parser.Default.ParseArguments<BlurOptions, InfoOptions>(args)
+                .MapResult((BlurOptions opts) => new BlurCommand().Run(opts),
+                    (InfoOptions opts) => new InfoCommand().Run(opts),
+                    errs => 1);
+
+
+            if (args.Length == 1 && args[0] == "info")
+            {
+            }
+
             if (args.Length != 2)
             {
                 Console.Error.WriteLine("The program expects exactly two arguments.");
@@ -41,13 +52,7 @@ namespace BlurredLines
             }
 
 
-            var platformInfos = SystemInformation.GetPlatformInfos();
-
-            using (var file = File.CreateText(Path.Combine(AppContext.BaseDirectory, "platformInfos.json")))
-            {
-                var serializer = new JsonSerializer {Formatting = Formatting.Indented};
-                serializer.Serialize(file, platformInfos);
-            }
+           
 
             //            Console.WriteLine($"Loading image {path}.");
 //            using (var image = Image.Load(path))

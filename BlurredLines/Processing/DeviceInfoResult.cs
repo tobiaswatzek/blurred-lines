@@ -1,5 +1,8 @@
 namespace BlurredLines.Processing
 {
+    /// <summary>
+    ///     Information about a device.
+    /// </summary>
     public class DeviceInfoResult
     {
         public string Name { get; set; }
@@ -11,19 +14,5 @@ namespace BlurredLines.Processing
         public int MaxWorkItemDimensions { get; set; }
         public int MaxWorkGroupSize { get; set; }
         public int MaxWorkItemSizes { get; set; }
-
-        public override string ToString()
-        {
-            return
-                $"{nameof(Name)}: {Name},\n" +
-                $"{nameof(Vendor)}: {Vendor},\n" +
-                $"{nameof(DriverVersion)}: {DriverVersion},\n" +
-                $"{nameof(Profile)}: {Profile},\n" +
-                $"{nameof(Version)}: {Version},\n" +
-                $"{nameof(Extensions)}: {Extensions},\n" +
-                $"{nameof(MaxWorkItemDimensions)}: {MaxWorkItemDimensions},\n" +
-                $"{nameof(MaxWorkGroupSize)}: {MaxWorkGroupSize},\n" +
-                $"{nameof(MaxWorkItemSizes)}: {MaxWorkItemSizes}";
-        }
     }
 }
