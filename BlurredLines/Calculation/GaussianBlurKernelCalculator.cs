@@ -13,16 +13,17 @@ namespace BlurredLines.Calculation
         /// <summary>
         ///     Calculate a one dimensional kernel for the given <see cref="kernelSize"/>.
         /// </summary>
-        /// <param name="kernelSize">An odd number above 0.</param>
+        /// <param name="kernelSize">An odd number greater than 2.</param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <returns></returns>
         public double[] CalculateOneDimensionalKernel(int kernelSize)
         {
-            if (kernelSize < 1 || kernelSize % 2 == 0)
+            if (kernelSize < 3 || kernelSize % 2 == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(kernelSize), "Has to be an odd number.");
+                throw new ArgumentOutOfRangeException(nameof(kernelSize), "Has to be an odd number greater than 2.");
             }
-            
+
+
             const double sigma = 1d;
             const double sampleCount = 1000d;
 
@@ -71,10 +72,11 @@ namespace BlurredLines.Calculation
             // renormalize kernel and round to 6 decimals
 
             allSamples = allSamples.Select(sample =>
-            {
-                sample.weight = Math.Round(sample.weight / weightSum, 6);
-                return sample;
-            }).ToList();
+                {
+                    sample.weight = Math.Round(sample.weight / weightSum, 6);
+                    return sample;
+                })
+                .ToList();
 
 
             return allSamples.Select(sample => Math.Round(sample.weight, 6))
@@ -82,6 +84,7 @@ namespace BlurredLines.Calculation
                 .Skip(1)
                 .ToArray();
         }
+
 
         private double GaussianDistribution(double x, double mu, double sigma)
         {

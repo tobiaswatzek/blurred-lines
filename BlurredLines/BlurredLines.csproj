@@ -81,10 +81,11 @@
         <Compile Include="Commands\BlurOptions.cs" />
         <Compile Include="Commands\InfoCommand.cs" />
         <Compile Include="Commands\InfoOptions.cs" />
-        <Compile Include="Processing\DeviceInfoResult.cs" />
-        <Compile Include="Processing\ErrorCodeExtensions.cs" />
-        <Compile Include="Processing\PlatformInfoResult.cs" />
-        <Compile Include="Processing\SystemInformation.cs" />
+        <Compile Include="Processing\GaussianBlur.cs" />
+        <Compile Include="Processing\Info\DeviceInfoResult.cs" />
+        <Compile Include="Processing\Info\ErrorCodeExtensions.cs" />
+        <Compile Include="Processing\Info\PlatformInfoResult.cs" />
+        <Compile Include="Processing\Info\SystemInformation.cs" />
         <Compile Include="Program.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
     </ItemGroup>
@@ -104,6 +105,9 @@
       <Content Include="images\hedgehog.jpg">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <Kernel Include="Kernels\test.cl">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Kernel>
     </ItemGroup>
     <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
     <Import Project="..\packages\OpenCL.Net.2.2.9.0\build\net40\OpenCL.Net.targets" Condition="Exists('..\packages\OpenCL.Net.2.2.9.0\build\net40\OpenCL.Net.targets')" />

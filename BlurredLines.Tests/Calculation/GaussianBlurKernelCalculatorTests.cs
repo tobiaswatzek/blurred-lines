@@ -48,7 +48,6 @@ namespace BlurredLines.Tests.Calculation
         public static IEnumerable<object[]> ExpectedOneDimensionalKernelValues =>
             new List<object[]>
             {
-                new object[] {1, new[] {1d}},
                 new object[] {3, new[] {0.27901, 0.44198, 0.27901}},
                 new object[] {5, new[] {0.06136, 0.24477, 0.38774, 0.24477, 0.06136}},
                 new object[] {7, new[] {0.00598, 0.060626, 0.241843, 0.383103, 0.241843, 0.060626, 0.00598}},

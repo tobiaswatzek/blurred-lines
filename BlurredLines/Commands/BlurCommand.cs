@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using BlurredLines.Calculation;
+using BlurredLines.Processing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
@@ -30,7 +31,7 @@ namespace BlurredLines.Commands
             var gaussianBlurKernelCalculator = new GaussianBlurKernelCalculator();
 
             var kernel = gaussianBlurKernelCalculator.CalculateOneDimensionalKernel(options.KernelSize);
-            
+
             kernel.ToList().ForEach(Console.WriteLine);
 
             Console.WriteLine($"Loading image {options.InFilePath}.");
@@ -38,8 +39,9 @@ namespace BlurredLines.Commands
             {
                 Console.WriteLine(
                     $"Loaded image {options.InFilePath} with width {image.Width} and height {image.Height}.");
-                
-                
+
+                var gaussianBlur = new GaussianBlur();
+                var blurredImage = gaussianBlur.Apply(image, options.KernelSize);
             }
 
             return 0;
