@@ -76,6 +76,7 @@
         <Reference Include="System.Xml" />
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="Calculation\GaussianBlurKernelCalculator.cs" />
         <Compile Include="Commands\BlurCommand.cs" />
         <Compile Include="Commands\BlurOptions.cs" />
         <Compile Include="Commands\InfoCommand.cs" />
