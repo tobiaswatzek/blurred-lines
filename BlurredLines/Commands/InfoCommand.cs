@@ -2,26 +2,35 @@ using System;
 using System.IO;
 using BlurredLines.Processing;
 using Newtonsoft.Json;
+using Serilog.Core;
 
 namespace BlurredLines.Commands
 {
     public class InfoCommand
     {
+        private readonly Logger logger;
+
+        public InfoCommand(Logger logger)
+        {
+            this.logger = logger;
+        }
+
         public int Run(InfoOptions options)
         {
-            Console.WriteLine($"Running info command with out file path '{options.OutFilePath}'.");
+            logger.Information("Running info command with out file path '{OutFilePath}'.",
+                options.OutFilePath);
 
-            Console.WriteLine("Gathering system information.");
+            logger.Information("Gathering system information.");
             var platformInfos = SystemInformation.GetPlatformInfos();
-            Console.WriteLine("Gathered all system information. Writing to file.");
+            logger.Information("Gathered all system information. Writing to file.");
             using (var file = File.CreateText(Path.GetFullPath(options.OutFilePath)))
             {
                 var serializer = new JsonSerializer {Formatting = Formatting.Indented};
                 serializer.Serialize(file, platformInfos);
             }
 
-            Console.WriteLine(
-                $"System information was successfully written to '{Path.GetFullPath(options.OutFilePath)}'.");
+            logger.Information("System information was successfully written to '{OutFilePath}'.",
+                Path.GetFullPath(options.OutFilePath));
 
             return 0;
         }

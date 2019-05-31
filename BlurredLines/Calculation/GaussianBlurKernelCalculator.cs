@@ -16,7 +16,7 @@ namespace BlurredLines.Calculation
         /// <param name="kernelSize">An odd number greater than 2.</param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <returns></returns>
-        public double[] CalculateOneDimensionalKernel(int kernelSize)
+        public float[] CalculateOneDimensionalKernel(int kernelSize)
         {
             if (kernelSize < 3 || kernelSize % 2 == 0)
             {
@@ -60,7 +60,7 @@ namespace BlurredLines.Calculation
                 var left = kernelLeft - 0.5 + tap;
 
                 var tapSamples = CalcSamplesForRange(left, left + 1);
-                var tapWeight = IntegrateSimphson(tapSamples);
+                var tapWeight = IntegrateSimpson(tapSamples);
 
                 allSamples.Add((tapSamples, tapWeight));
                 weightSum += tapWeight;
@@ -79,7 +79,7 @@ namespace BlurredLines.Calculation
                 .ToList();
 
 
-            return allSamples.Select(sample => Math.Round(sample.weight, 6))
+            return allSamples.Select(sample => (float)Math.Round(sample.weight, 6))
                 .Take(allSamples.Count - 1)
                 .Skip(1)
                 .ToArray();
@@ -112,7 +112,7 @@ namespace BlurredLines.Calculation
             return result;
         }
 
-        private double IntegrateSimphson(IList<(double x, double y)> samples)
+        private double IntegrateSimpson(IList<(double x, double y)> samples)
         {
             var result = samples.First().y + samples.Last().y;
 

@@ -1,19 +1,24 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BlurredLines.Calculation;
 using OpenCL.Net;
+using Serilog.Core;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace BlurredLines.Processing
 {
     public class GaussianBlur
     {
+        private readonly Logger logger;
         private readonly GaussianBlurKernelCalculator kernelCalculator;
 
-        public GaussianBlur()
+        public GaussianBlur(Logger logger)
         {
+            this.logger = logger;
             kernelCalculator = new GaussianBlurKernelCalculator();
         }
 
@@ -40,55 +45,96 @@ namespace BlurredLines.Processing
             var device = devices.First();
             var deviceInfo = SystemInformation.GetDeviceInfo(device);
 
-            const int elementSize = 200;
-            const int dataSize = elementSize * sizeof(int);
-            var vectorA = new int[elementSize];
-            var vectorB = new int[elementSize];
-            var vectorC = new int[elementSize];
+            var pixels = image.GetPixelSpan().ToArray();
+            var imageChannelDataSize = pixels.Length * sizeof(byte);
+            var gaussianKernelDataSize = kernelSize * sizeof(float);
 
-            for (var i = 0; i < elementSize; i++)
-            {
-                vectorA[i] = i;
-                vectorB[i] = i;
-            }
-
+            logger.Debug("Start creating buffers.");
             using (var context = CreateContextOrThrow(devices))
             using (var commandQueue = CreateCommandQueueOrThrow(context, device))
-            using (var bufferA = CreateBufferOrThrow<int>(context, MemFlags.ReadOnly, dataSize))
-            using (var bufferB = CreateBufferOrThrow<int>(context, MemFlags.ReadOnly, dataSize))
-            using (var bufferC = CreateBufferOrThrow<int>(context, MemFlags.ReadOnly, dataSize))
+                // input buffers
+            using (var inRedImageBuffer =
+                CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, imageChannelDataSize))
+            using (var inGreenImageBuffer =
+                CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, imageChannelDataSize))
+            using (var inBlueImageBuffer =
+                    CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, imageChannelDataSize))
+                // output buffers
+            // TODO: Use imageChannelDataSize instead of 1024
+            using (var outRedImageBuffer =
+                CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, 1024))
+            using (var outGreenImageBuffer =
+                CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, 1024))
+            using (var outBlueImageBuffer =
+                    CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, 1024))
+                // gaussian kernel
+            using (var gaussianKernelBuffer =
+                CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, gaussianKernelDataSize))
             {
+                logger.Debug("Created buffers.");
+
+                var writeEvents = new List<Event>();
                 Cl.EnqueueWriteBuffer(commandQueue,
-                        bufferA,
-                        Bool.True,
+                        inRedImageBuffer,
+                        Bool.False,
                         0,
-                        dataSize,
-                        vectorA,
+                        imageChannelDataSize,
+                        pixels.Select(pixel => pixel.R).ToArray(),
                         0,
                         null,
-                        out _)
+                        out var redWriteEvent)
                     .ThrowOnError();
+                writeEvents.Add(redWriteEvent);
                 Cl.EnqueueWriteBuffer(commandQueue,
-                        bufferB,
-                        Bool.True,
+                        inGreenImageBuffer,
+                        Bool.False,
                         0,
-                        dataSize,
-                        vectorB,
+                        imageChannelDataSize,
+                        pixels.Select(pixel => pixel.G).ToArray(),
                         0,
                         null,
-                        out _)
+                        out var greenWriteEvent)
                     .ThrowOnError();
-                var programSource = File.ReadAllText("Kernels/test.cl");
+                writeEvents.Add(greenWriteEvent);
+                Cl.EnqueueWriteBuffer(commandQueue,
+                        inBlueImageBuffer,
+                        Bool.True,
+                        0,
+                        imageChannelDataSize,
+                        pixels.Select(pixel => pixel.B).ToArray(),
+                        0,
+                        null,
+                        out var blueWriteEvent)
+                    .ThrowOnError();
+                writeEvents.Add(blueWriteEvent);
+
+                Cl.EnqueueWriteBuffer(commandQueue,
+                        gaussianKernelBuffer,
+                        Bool.False,
+                        0,
+                        gaussianKernelDataSize,
+                        gaussianKernel,
+                        0,
+                        null,
+                        out var gaussianKernelEvent)
+                    .ThrowOnError();
+                writeEvents.Add(gaussianKernelEvent);
+
+                Cl.WaitForEvents((uint) writeEvents.Count, writeEvents.ToArray()).ThrowOnError();
+
+                logger.Debug("Wrote data to all buffers.");
+
+                logger.Debug("Creating OpenCL program.");
+                var programSource =
+                    File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Kernels/gaussianBlur.cl"));
                 using (var program = CreateProgramWithSourceOrThrow(context, programSource))
                 {
                     BuildProgramOrThrow(program, 1, new[] {device});
-                    using (var kernel = CreateKernelOrThrow(program, "vector_add"))
+                    logger.Debug("Successfully built OpenCL program.");
+                    logger.Debug("Creating OpenCL kernel.");
+                    using (var kernel = CreateKernelOrThrow(program, "gaussianBlur"))
                     {
-                        // set the kernel arguments
-                        Cl.SetKernelArg(kernel, 0, bufferA).ThrowOnError();
-                        Cl.SetKernelArg(kernel, 1, bufferB).ThrowOnError();
-                        Cl.SetKernelArg(kernel, 2, bufferC).ThrowOnError();
-
+                        logger.Debug("Successfully created OpenCL kernel");
                         // define an index space for execution
                         Cl.GetDeviceInfo(device,
                                 DeviceInfo.MaxWorkItemDimensions,
@@ -120,71 +166,124 @@ namespace BlurredLines.Processing
                             .ThrowOnError();
                         var maxWorkItemSizes =
                             maxWorkItemSizesInfoBuffer.CastToArray<IntPtr>(dimensions);
-                        var maxWorkItemSizeX = maxWorkItemSizes[0].ToInt32();
+                        var maxWorkItemSizeRed = maxWorkItemSizes[0].ToInt32();
+                        var maxWorkItemSizeGreen = maxWorkItemSizes[1].ToInt32();
+                        var maxWorkItemSizeBlue = maxWorkItemSizes[2].ToInt32();
 
-                        if (elementSize > maxWorkItemSizeX)
-                        {
-                            Console.WriteLine(
-                                "Error: Too many elements to process - maximum elements allowed: " +
-                                maxWorkItemSizeX);
-                            System.Environment.Exit(1);
-                        }
+                        logger.Information(
+                            "Retrieved work item sizes red {WorkItemSizeRed}, green {WorkItemSizeGreen} and blue {WorkItemSizeBlue}.",
+                            maxWorkItemSizeRed,
+                            maxWorkItemSizeGreen,
+                            maxWorkItemSizeBlue);
+//                        __global const unsigned char *red,
+//                            __global const unsigned char *green,
+//                            __global const unsigned char *blue,
+//                            __global const unsigned char *redOut,
+//                            __global const unsigned char *greenOut,
+//                            __global const unsigned char *blueOut,
+//                            __local unsigned char *redLocal,
+//                            __local unsigned char *greenLocal,
+//                            __local unsigned char *blueLocal,
+//                            __global const double *kernel,
+//                        int kernelSize,
+//                        int width)
 
+                        logger.Debug("Setting OpenCL kernel arguments.");
+                        // set the kernel arguments
+                        Cl.SetKernelArg(kernel, 0, inRedImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 1, inGreenImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 2, inBlueImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 3, outRedImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 4, outGreenImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 5, outBlueImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg<byte>(kernel, 6, maxWorkItemSizeRed).ThrowOnError();
+                        Cl.SetKernelArg<byte>(kernel, 7, maxWorkItemSizeRed).ThrowOnError();
+                        Cl.SetKernelArg<byte>(kernel, 8, maxWorkItemSizeRed).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 9, gaussianKernelBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 10, kernelSize);
+                        Cl.SetKernelArg(kernel, 11, image.Width);
+        
+                        logger.Debug("Successfully set OpenCL kernel arguments");
+                        
+                        logger.Debug("Running OpenCL kernel.");
                         // execute the kernel
                         Cl.EnqueueNDRangeKernel(commandQueue,
                                 kernel,
-                                1,
+                                3,
                                 null,
-                                new IntPtr[] {new IntPtr(elementSize)},
+                                maxWorkItemSizes,
                                 null,
                                 0,
                                 null,
                                 out _)
                             .ThrowOnError();
-
+                        logger.Debug("Successfully ran OpenCL kernel.");
                         // read the device output buffer to the host output array
+                        var readEvents = new List<Event>();
+                        var outRed = new byte[maxWorkItemSizeRed];
+                        var outGreen = new byte[maxWorkItemSizeGreen];
+                        var outBlue = new byte[maxWorkItemSizeBlue];
+                        
+                        logger.Debug("Reading result from OpenCL buffers.");
                         Cl.EnqueueReadBuffer(commandQueue,
-                                bufferC,
-                                Bool.True,
-                                0,
-                                dataSize,
-                                vectorC,
-                                0,
-                                null,
-                                out _)
-                            .ThrowOnError();
+                            outRedImageBuffer,
+                            Bool.False,
+                            0,
+                            maxWorkItemSizeRed,
+                            outRed,
+                            0,
+                            null,
+                            out var redReadEvent);
+                        readEvents.Add(redReadEvent);
 
-                        // output result
-                        PrintVector(vectorA, elementSize, "Input A");
-                        PrintVector(vectorB, elementSize, "Input B");
-                        PrintVector(vectorC, elementSize, "Output C");
+                        Cl.EnqueueReadBuffer(commandQueue,
+                            outGreenImageBuffer,
+                            Bool.False,
+                            0,
+                            maxWorkItemSizeGreen,
+                            outGreen,
+                            0,
+                            null,
+                            out var greenReadEvent);
+                        readEvents.Add(greenReadEvent);
+
+                        Cl.EnqueueReadBuffer(commandQueue,
+                            outBlueImageBuffer,
+                            Bool.False,
+                            0,
+                            maxWorkItemSizeBlue,
+                            outBlue,
+                            0,
+                            null,
+                            out var blueReadEvent);
+                        readEvents.Add(blueReadEvent);
+
+                        Cl.WaitForEvents((uint) readEvents.Count, readEvents.ToArray());
+                        logger.Debug("Successfully read result from OpenCL buffers.");
+    
+                        var modifiedPixels = Enumerable.Range(0, maxWorkItemSizeRed)
+                            .Select(index => new Rgb24(outRed[index], outGreen[index], outBlue[index]))
+                            .ToArray();
+                        logger.Debug("Successfully created pixels from the color channels.");
+                        
+                        logger.Debug("Creating image from pixels.");
+                        var modifiedImage = Image.LoadPixelData(modifiedPixels, (int) Math.Sqrt(maxWorkItemSizeRed), (int) Math.Sqrt(maxWorkItemSizeRed));
+                        logger.Debug("Successfully created image.");
+                        
+                        return modifiedImage;
                     }
                 }
             }
-
-            return image;
-        }
-        
-        static void PrintVector(int[] vector, int elementSize, string label)
-        {
-            Console.WriteLine(label + ":");
-
-            for (var i = 0; i < elementSize; ++i)
-            {
-                Console.Write(vector[i] + " ");
-            }
-
-            Console.WriteLine();
         }
 
         private static Kernel CreateKernelOrThrow(OpenCL.Net.Program program, string kernelName)
         {
-            var kernel = Cl.CreateKernel(program, "vector_add", out var error);
+            var kernel = Cl.CreateKernel(program, kernelName, out var error);
             error.ThrowOnError();
             return kernel;
         }
 
-        private static void BuildProgramOrThrow(OpenCL.Net.Program program, uint numDevices, Device[] devices)
+        private void BuildProgramOrThrow(OpenCL.Net.Program program, uint numDevices, Device[] devices)
         {
             var error = Cl.BuildProgram(program, numDevices, devices, "", null, IntPtr.Zero);
             if (error == ErrorCode.Success)
@@ -197,7 +296,7 @@ namespace BlurredLines.Processing
                 ProgramBuildInfo.Log,
                 out error);
             error.ThrowOnError();
-            Console.Error.WriteLine($"Build Error: {infoBuffer}");
+            logger.Error("OpenCL kernel build error: {ErrorMessage}.", infoBuffer);
             throw new InvalidOperationException("Could not build OpenCL program.");
         }
 
