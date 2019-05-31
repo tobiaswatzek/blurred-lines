@@ -29,9 +29,13 @@ __kernel void gaussianBlur(
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
+//	for(int i = 0; i < kernelSize; ++i) {
+//	    float gaussianKernelValue = gaussianKernel[i];
+//	    
+//	}
 	
-	redOut[globalIdRed] = redLocal[localIdRed] + 5;
-	greenOut[globalIdGreen] = greenLocal[localIdGreen] + 5;
-	blueOut[globalIdBlue] = blueLocal[localIdBlue] + 5;
+	redOut[globalIdRed] = 255 - redLocal[localIdRed];
+	greenOut[globalIdGreen] = 255 - greenLocal[localIdGreen];
+	blueOut[globalIdBlue] = 255 -blueLocal[localIdBlue];
 	    
 }
