@@ -87,7 +87,7 @@ namespace BlurredLines.Processing
             }
         }
 
-        private static T GetDeviceInfoPart<T>(Device device, DeviceInfo part, Func<InfoBuffer, T> toValue)
+        public static T GetDeviceInfoPart<T>(Device device, DeviceInfo part, Func<InfoBuffer, T> toValue)
         {
             using (var info = Cl.GetDeviceInfo(device, part, out var errorCode))
             {

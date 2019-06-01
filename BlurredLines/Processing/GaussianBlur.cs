@@ -101,42 +101,18 @@ namespace BlurredLines.Processing
                     using (var kernel = CreateKernelOrThrow(program, "gaussianBlur"))
                     {
                         logger.Debug("Successfully created OpenCL kernel");
-                        // define an index space for execution
-                        Cl.GetDeviceInfo(device,
-                                DeviceInfo.MaxWorkItemDimensions,
-                                IntPtr.Zero,
-                                InfoBuffer.Empty,
-                                out var paramSize)
-                            .ThrowOnError();
-                        var dimensionInfoBuffer = new InfoBuffer(paramSize);
-                        Cl.GetDeviceInfo(device,
-                                DeviceInfo.MaxWorkItemDimensions,
-                                paramSize,
-                                dimensionInfoBuffer,
-                                out paramSize)
-                            .ThrowOnError();
-                        var dimensions = dimensionInfoBuffer.CastTo<int>();
-
-                        Cl.GetDeviceInfo(device,
-                                DeviceInfo.MaxWorkItemSizes,
-                                IntPtr.Zero,
-                                InfoBuffer.Empty,
-                                out paramSize)
-                            .ThrowOnError();
-                        var maxWorkItemSizesInfoBuffer = new InfoBuffer(paramSize);
-                        Cl.GetDeviceInfo(device,
-                                DeviceInfo.MaxWorkItemSizes,
-                                paramSize,
-                                maxWorkItemSizesInfoBuffer,
-                                out paramSize)
-                            .ThrowOnError();
-                        var maxWorkItemSizes =
-                            maxWorkItemSizesInfoBuffer.CastToArray<IntPtr>(dimensions);
-                        var maxWorkItemSize = maxWorkItemSizes[0].ToInt32();
+                        
+                        
+                        var maxWorkItemSize = GetMaxWorkItemSize(device);
 
                         logger.Information("Retrieved max work item size {MaxWorkItemSize}.",
                             maxWorkItemSize);
-
+                        
+                        Cl.SetKernelArg(kernel, 0, inImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 1, outImageBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 3, gaussianKernelBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 4, kernelSize);
+                        Cl.SetKernelArg(kernel, 5, image.Width);
 
                         var numberOfBatches = (pixels.Length + maxWorkItemSize - 1) / maxWorkItemSize;
                         var kernelEvents = new List<Event>(numberOfBatches);
@@ -158,13 +134,9 @@ namespace BlurredLines.Processing
 
                             logger.Debug("Setting OpenCL kernel arguments.");
                             // set the kernel arguments
-                            Cl.SetKernelArg(kernel, 0, inImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 1, outImageBuffer).ThrowOnError();
+                            
                             Cl.SetKernelArg<uchar3>(kernel, 2, numberOfWorkItemsVal).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 3, gaussianKernelBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 4, kernelSize);
-                            Cl.SetKernelArg(kernel, 5, image.Width);
-
+                            
                             logger.Debug("Successfully set OpenCL kernel arguments");
 
                             logger.Debug("Enqueuing OpenCL kernel.");
@@ -183,7 +155,7 @@ namespace BlurredLines.Processing
                             logger.Debug("Successfully enqueued OpenCL kernel.");
                         }
 
-                        logger.Debug("Waiting for kernels to complete.");
+                        logger.Debug("Waiting for {NumberOfKernelEvents} kernels to complete.", kernelEvents.Count);
                         Cl.WaitForEvents((uint) kernelEvents.Count, kernelEvents.ToArray())
                             .ThrowOnError();
                         logger.Debug("Kernel events finished.");
@@ -199,13 +171,14 @@ namespace BlurredLines.Processing
                                 outPixels,
                                 0,
                                 null,
-                                out var redReadEvent)
+                                out _)
                             .ThrowOnError();
                         logger.Debug("Successfully read result from OpenCL buffers.");
 
                         logger.Debug("Converting data to pixels.");
-                        var modifiedPixels = Enumerable.Range(0, pixels.Length)
-                            .Select(i => new Rgb24(outPixels[i].s0, outPixels[i].s1, outPixels[i].s2));
+                       
+                        var modifiedPixels = outPixels
+                            .Select(pixel => new Rgb24(pixel.s0, pixel.s1, pixel.s2));
                         logger.Debug("Successfully converted data to pixels.");
 
                         logger.Debug("Creating image from pixels.");
@@ -216,6 +189,17 @@ namespace BlurredLines.Processing
                     }
                 }
             }
+        }
+
+        private static int GetMaxWorkItemSize(Device device)
+        {
+            return SystemInformation.GetDeviceInfoPart(device,
+                DeviceInfo.MaxWorkItemSizes,
+                buffer =>
+                {
+                    var maxWorkItemSizes = buffer.CastToArray<IntPtr>(1);
+                    return maxWorkItemSizes[0].ToInt32();
+                });
         }
 
         private static Kernel CreateKernelOrThrow(OpenCL.Net.Program program, string kernelName)
