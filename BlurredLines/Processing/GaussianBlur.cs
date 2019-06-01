@@ -49,19 +49,11 @@ namespace BlurredLines.Processing
             using (var context = CreateContextOrThrow(devices))
             using (var commandQueue = CreateCommandQueueOrThrow(context, device))
                 // input buffers
-            using (var inRedImageBuffer =
-                CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
-            using (var inGreenImageBuffer =
-                CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
-            using (var inBlueImageBuffer =
-                    CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
+            using (var inImageBuffer =
+                    CreateBufferOrThrow<uchar3>(context, MemFlags.ReadOnly, pixels.Length))
                 // output buffers
-            using (var outRedImageBuffer =
-                CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
-            using (var outGreenImageBuffer =
-                CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
-            using (var outBlueImageBuffer =
-                    CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
+            using (var outImageBuffer =
+                    CreateBufferOrThrow<uchar3>(context, MemFlags.WriteOnly, pixels.Length))
                 // gaussian kernel
             using (var gaussianKernelBuffer =
                 CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, kernelSize))
@@ -70,38 +62,16 @@ namespace BlurredLines.Processing
 
                 var writeEvents = new List<Event>();
                 Cl.EnqueueWriteBuffer(commandQueue,
-                        inRedImageBuffer,
+                        inImageBuffer,
                         Bool.False,
                         0,
                         pixels.Length,
-                        pixels.Select(pixel => pixel.R).ToArray(),
+                        pixels.Select(pixel => new uchar3(pixel.R, pixel.G, pixel.B)).ToArray(),
                         0,
                         null,
                         out var redWriteEvent)
                     .ThrowOnError();
                 writeEvents.Add(redWriteEvent);
-                Cl.EnqueueWriteBuffer(commandQueue,
-                        inGreenImageBuffer,
-                        Bool.False,
-                        0,
-                        pixels.Length,
-                        pixels.Select(pixel => pixel.G).ToArray(),
-                        0,
-                        null,
-                        out var greenWriteEvent)
-                    .ThrowOnError();
-                writeEvents.Add(greenWriteEvent);
-                Cl.EnqueueWriteBuffer(commandQueue,
-                        inBlueImageBuffer,
-                        Bool.True,
-                        0,
-                        pixels.Length,
-                        pixels.Select(pixel => pixel.B).ToArray(),
-                        0,
-                        null,
-                        out var blueWriteEvent)
-                    .ThrowOnError();
-                writeEvents.Add(blueWriteEvent);
 
                 Cl.EnqueueWriteBuffer(commandQueue,
                         gaussianKernelBuffer,
@@ -162,26 +132,21 @@ namespace BlurredLines.Processing
                             .ThrowOnError();
                         var maxWorkItemSizes =
                             maxWorkItemSizesInfoBuffer.CastToArray<IntPtr>(dimensions);
-                        var maxWorkItemSizeRed = maxWorkItemSizes[0].ToInt32();
-                        var maxWorkItemSizeGreen = maxWorkItemSizes[1].ToInt32();
-                        var maxWorkItemSizeBlue = maxWorkItemSizes[2].ToInt32();
+                        var maxWorkItemSize = maxWorkItemSizes[0].ToInt32();
 
-                        logger.Information(
-                            "Retrieved work item sizes red {WorkItemSizeRed}, green {WorkItemSizeGreen} and blue {WorkItemSizeBlue}.",
-                            maxWorkItemSizeRed,
-                            maxWorkItemSizeGreen,
-                            maxWorkItemSizeBlue);
+                        logger.Information("Retrieved max work item size {MaxWorkItemSize}.",
+                            maxWorkItemSize);
 
 
-                        var numberOfBatches = (pixels.Length + maxWorkItemSizeRed - 1) / maxWorkItemSizeRed;
+                        var numberOfBatches = (pixels.Length + maxWorkItemSize - 1) / maxWorkItemSize;
                         var kernelEvents = new List<Event>(numberOfBatches);
                         for (int i = 0; i < numberOfBatches; ++i)
                         {
-                            var offset = new IntPtr(i * maxWorkItemSizeRed);
+                            var offset = new IntPtr(i * maxWorkItemSize);
 
-                            var numberOfRemainingPixels = pixels.Length - (i * maxWorkItemSizeRed);
-                            var numberOfWorkItemsVal = numberOfRemainingPixels >= maxWorkItemSizeRed
-                                ? maxWorkItemSizeRed
+                            var numberOfRemainingPixels = pixels.Length - (i * maxWorkItemSize);
+                            var numberOfWorkItemsVal = numberOfRemainingPixels >= maxWorkItemSize
+                                ? maxWorkItemSize
                                 : numberOfRemainingPixels;
                             var numberOfWorkItems = new IntPtr(numberOfWorkItemsVal);
 
@@ -193,18 +158,12 @@ namespace BlurredLines.Processing
 
                             logger.Debug("Setting OpenCL kernel arguments.");
                             // set the kernel arguments
-                            Cl.SetKernelArg(kernel, 0, inRedImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 1, inGreenImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 2, inBlueImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 3, outRedImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 4, outGreenImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 5, outBlueImageBuffer).ThrowOnError();
-                            Cl.SetKernelArg<byte>(kernel, 6, maxWorkItemSizeRed).ThrowOnError();
-                            Cl.SetKernelArg<byte>(kernel, 7, maxWorkItemSizeRed).ThrowOnError();
-                            Cl.SetKernelArg<byte>(kernel, 8, maxWorkItemSizeRed).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 9, gaussianKernelBuffer).ThrowOnError();
-                            Cl.SetKernelArg(kernel, 10, kernelSize);
-                            Cl.SetKernelArg(kernel, 11, image.Width);
+                            Cl.SetKernelArg(kernel, 0, inImageBuffer).ThrowOnError();
+                            Cl.SetKernelArg(kernel, 1, outImageBuffer).ThrowOnError();
+                            Cl.SetKernelArg<uchar3>(kernel, 2, numberOfWorkItemsVal).ThrowOnError();
+                            Cl.SetKernelArg(kernel, 3, gaussianKernelBuffer).ThrowOnError();
+                            Cl.SetKernelArg(kernel, 4, kernelSize);
+                            Cl.SetKernelArg(kernel, 5, image.Width);
 
                             logger.Debug("Successfully set OpenCL kernel arguments");
 
@@ -212,9 +171,9 @@ namespace BlurredLines.Processing
                             // execute the kernel
                             Cl.EnqueueNDRangeKernel(commandQueue,
                                     kernel,
-                                    3,
-                                    new[] {offset, offset, offset},
-                                    new[] {numberOfWorkItems, numberOfWorkItems, numberOfWorkItems},
+                                    1,
+                                    new[] {offset},
+                                    new[] {numberOfWorkItems},
                                     null,
                                     0,
                                     null,
@@ -228,54 +187,26 @@ namespace BlurredLines.Processing
                         Cl.WaitForEvents((uint) kernelEvents.Count, kernelEvents.ToArray())
                             .ThrowOnError();
                         logger.Debug("Kernel events finished.");
-                        
+
                         // read the device output buffer to the host output array
-                        var readEvents = new List<Event>();
-                        var outRed = new byte[pixels.Length];
-                        var outGreen = new byte[pixels.Length];
-                        var outBlue = new byte[pixels.Length];
+                        var outPixels = new uchar3[pixels.Length];
                         logger.Debug("Reading result from OpenCL buffers.");
                         Cl.EnqueueReadBuffer(commandQueue,
-                            outRedImageBuffer,
-                            Bool.False,
-                            0,
-                            pixels.Length,
-                            outRed,
-                            0,
-                            null,
-                            out var redReadEvent);
-                        readEvents.Add(redReadEvent);
-
-                        Cl.EnqueueReadBuffer(commandQueue,
-                            outGreenImageBuffer,
-                            Bool.False,
-                            0,
-                            pixels.Length,
-                            outGreen,
-                            0,
-                            null,
-                            out var greenReadEvent);
-                        readEvents.Add(greenReadEvent);
-
-                        Cl.EnqueueReadBuffer(commandQueue,
-                            outBlueImageBuffer,
-                            Bool.False,
-                            0,
-                            pixels.Length,
-                            outBlue,
-                            0,
-                            null,
-                            out var blueReadEvent);
-                        readEvents.Add(blueReadEvent);
-
-                        Cl.WaitForEvents((uint) readEvents.Count, readEvents.ToArray())
+                                outImageBuffer,
+                                Bool.True,
+                                0,
+                                pixels.Length,
+                                outPixels,
+                                0,
+                                null,
+                                out var redReadEvent)
                             .ThrowOnError();
                         logger.Debug("Successfully read result from OpenCL buffers.");
 
-                        logger.Debug("Creating pixels from color channels.");
+                        logger.Debug("Converting data to pixels.");
                         var modifiedPixels = Enumerable.Range(0, pixels.Length)
-                            .Select(i => new Rgb24(outRed[i], outGreen[i], outBlue[i]));
-                        logger.Debug("Successfully created pixels from the color channels.");
+                            .Select(i => new Rgb24(outPixels[i].s0, outPixels[i].s1, outPixels[i].s2));
+                        logger.Debug("Successfully converted data to pixels.");
 
                         logger.Debug("Creating image from pixels.");
                         var modifiedImage = Image.LoadPixelData(modifiedPixels.ToArray(), image.Width, image.Height);

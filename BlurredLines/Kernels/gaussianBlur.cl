@@ -2,30 +2,17 @@
 * A kernel that applies a gaussian blur to pixels.
 */
 __kernel void gaussianBlur(
-    __global const unsigned char *red,
-	__global const unsigned char *green,
-	__global const unsigned char *blue,
-    __global unsigned char *redOut,
-	__global unsigned char *greenOut,
-	__global unsigned char *blueOut,
-	__local unsigned char *redLocal,
-    __local unsigned char *greenLocal,
-    __local unsigned char *blueLocal,
+    __global const uchar3 *pixels,
+    __global uchar3 *pixelsOut,
+	__local uchar3 *pixelsLocal,
 	__global const float *gaussianKernel,
 	int kernelSize,
 	int width)
 {
-    size_t globalIdRed = get_global_id(0);
-    size_t globalIdGreen = get_global_id(1);
-    size_t globalIdBlue = get_global_id(2);
-
-    size_t localIdRed = get_local_id(0);
-    size_t localIdGreen = get_local_id(1);
-    size_t localIdBlue = get_local_id(2);
+    size_t globalId = get_global_id(0);
+    size_t localId = get_local_id(0);
 	
-	redLocal[localIdRed] = red[globalIdRed];
-	greenLocal[localIdGreen] = green[globalIdGreen];
-	blueLocal[localIdBlue] = blue[globalIdBlue];
+	pixelsLocal[localId] = pixels[globalId];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
@@ -34,8 +21,10 @@ __kernel void gaussianBlur(
 //	    
 //	}
 	
-	redOut[globalIdRed] = 255 - redLocal[localIdRed];
-	greenOut[globalIdGreen] = 255 - greenLocal[localIdGreen];
-	blueOut[globalIdBlue] = 255 -blueLocal[localIdBlue];
-	    
+	uchar3 inversePixel = pixelsLocal[localId];
+	inversePixel.s0 = 255 - inversePixel.s0;
+	inversePixel.s1 = 255 - inversePixel.s1;
+	inversePixel.s2 = 255 - inversePixel.s2;
+	
+	pixelsOut[globalId] = inversePixel;
 }
