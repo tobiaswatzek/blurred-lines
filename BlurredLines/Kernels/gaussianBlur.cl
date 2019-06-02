@@ -2,9 +2,9 @@
 * A kernel that applies a gaussian blur to pixels.
 */
 __kernel void gaussianBlur(
-    __constant const unsigned char *redPixels,
-    __constant const unsigned char *greenPixels,
-    __constant const unsigned char *bluePixels,
+    __global const unsigned char *redPixels,
+    __global const unsigned char *greenPixels,
+    __global const unsigned char *bluePixels,
     __global unsigned char *redPixelsOut,
     __global unsigned char *greenPixelsOut,
     __global unsigned char *bluePixelsOut,

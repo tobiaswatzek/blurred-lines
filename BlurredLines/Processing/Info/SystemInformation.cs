@@ -73,7 +73,8 @@ namespace BlurredLines.Processing.Info
                 Extensions = GetDeviceInfoPartString(device, DeviceInfo.Extensions),
                 MaxWorkGroupSize = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkGroupSize),
                 MaxWorkItemSizes = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkItemSizes),
-                MaxWorkItemDimensions = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkItemDimensions)
+                MaxWorkItemDimensions = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkItemDimensions),
+                MaxConstantBufferSize = GetDeviceInfoPartUlong(device, DeviceInfo.MaxConstantBufferSize)
             };
         }
 
@@ -101,6 +102,11 @@ namespace BlurredLines.Processing.Info
             return GetDeviceInfoPart(device, part, buffer => buffer.ToString());
         }
 
+        private static ulong GetDeviceInfoPartUlong(Device device, DeviceInfo part)
+        {
+            return GetDeviceInfoPart(device, part, buffer => buffer.CastTo<ulong>());
+        }
+        
         private static int GetDeviceInfoPartInt(Device device, DeviceInfo part)
         {
             return GetDeviceInfoPart(device, part, buffer => buffer.CastTo<int>());
