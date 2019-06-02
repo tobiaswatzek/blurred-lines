@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using BlurredLines.Processing;
+using BlurredLines.Processing.Info;
 using Newtonsoft.Json;
 using Serilog.Core;
 

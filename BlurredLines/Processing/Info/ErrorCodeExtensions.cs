@@ -1,7 +1,7 @@
 using System;
 using OpenCL.Net;
 
-namespace BlurredLines.Processing
+namespace BlurredLines.Processing.Info
 {
     /// <summary>
     ///     Extensions for <see cref="ErrorCode"/>

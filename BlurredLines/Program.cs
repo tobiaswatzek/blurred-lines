@@ -14,7 +14,7 @@ namespace BlurredLines
         public static int Main(string[] args)
         {
             var logger = new LoggerConfiguration()
-                .MinimumLevel.Warning()
+                .MinimumLevel.Information()
                 .WriteTo.Console(theme: AnsiConsoleTheme.Code)
                 .WriteTo.File("logs/blurred-lines.log", rollingInterval: RollingInterval.Day)
                 .CreateLogger();

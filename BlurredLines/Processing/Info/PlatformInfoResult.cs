@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace BlurredLines.Processing
+namespace BlurredLines.Processing.Info
 {
     /// <summary>
     ///     Information about a platform.

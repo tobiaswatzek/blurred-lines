@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using OpenCL.Net;
 
-namespace BlurredLines.Processing
+namespace BlurredLines.Processing.Info
 {
     /// <summary>
     ///     Retrieve basic system information of the OpenCL platforms and devices.

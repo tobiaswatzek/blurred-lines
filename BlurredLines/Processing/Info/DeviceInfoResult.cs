@@ -1,4 +1,4 @@
-namespace BlurredLines.Processing
+namespace BlurredLines.Processing.Info
 {
     /// <summary>
     ///     Information about a device.
