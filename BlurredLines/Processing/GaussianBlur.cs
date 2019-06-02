@@ -162,7 +162,7 @@ namespace BlurredLines.Processing
                         Cl.SetKernelArg(kernel, 3, redPixelsOutBuffer).ThrowOnError();
                         Cl.SetKernelArg(kernel, 4, greenPixelsOutBuffer).ThrowOnError();
                         Cl.SetKernelArg(kernel, 5, bluePixelsOutBuffer).ThrowOnError();
-                        Cl.SetKernelArg(kernel, 7, gaussianKernelBuffer).ThrowOnError();
+                        Cl.SetKernelArg(kernel, 6, gaussianKernelBuffer).ThrowOnError();
                         logger.Debug("Successfully set OpenCL kernel arguments");
 
                         var numberOfBatches = (pixels.Length + maxWorkItemSize - 1) / maxWorkItemSize;
@@ -182,10 +182,9 @@ namespace BlurredLines.Processing
                                 i,
                                 numberOfBatches,
                                 numberOfWorkItemsVal);
-
                             // set the kernel arguments
                             logger.Debug("Setting OpenCL local pixels kernel arguments.");
-                            Cl.SetKernelArg<float3>(kernel, 6, numberOfWorkItemsVal).ThrowOnError();
+                            Cl.SetKernelArg(kernel, 7, new IntPtr(numberOfWorkItemsVal * sizeof(float) * 3), null ).ThrowOnError();
                             logger.Debug("Successfully set OpenCL local pixels kernel arguments.");
 
                             logger.Debug("Enqueuing OpenCL kernel.");

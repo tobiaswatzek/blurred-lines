@@ -8,16 +8,18 @@ __kernel void gaussianBlur(
     __global unsigned char *redPixelsOut,
     __global unsigned char *greenPixelsOut,
     __global unsigned char *bluePixelsOut,
-	__local float3 *pixelsLocal,
-	__constant  const float *gaussianKernel)
+    __constant  const float *gaussianKernel,
+	__local float3 *pixelsLocal)
 {
     size_t globalId = get_global_id(0);
     size_t localId = get_local_id(0);
     size_t localSize = get_local_size(0);
-
+        
     pixelsLocal[localId] = (float3) (redPixels[globalId], greenPixels[globalId], bluePixels[globalId]);
 
 	barrier(CLK_LOCAL_MEM_FENCE);
+
+   
 
     float3 blurredPixel = (float3)(0);
     int radius = GAUSS_KERNEL_SIZE >> 1;
@@ -25,6 +27,10 @@ __kernel void gaussianBlur(
     size_t x = globalId % IMAGE_WIDTH;
     size_t y = globalId / IMAGE_WIDTH;
         
+    if (globalId == 0) {
+        printf("%d-%d-%d", IMAGE_WIDTH, GAUSS_KERNEL_SIZE, radius);
+    }
+    
     for(int i = 0; i < GAUSS_KERNEL_SIZE; ++i) {
         float gaussianKernelValue = gaussianKernel[i];
         float3 pixel = (float3)(0);
