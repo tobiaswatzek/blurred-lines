@@ -125,13 +125,15 @@ namespace BlurredLines.Processing
                 var programSource = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Kernels/gaussianBlur.cl"));
                 using (var program = CreateProgramWithSourceOrThrow(context, programSource))
                 {
+                    var gaussRadiusSize = kernelSize >> 1;
                     logger.Debug("Building OpenCL program.");
                     BuildProgramOrThrow(program,
                         1,
                         new[] {device},
                         $"-D IMAGE_WIDTH={image.Width}",
                         $"-D IMAGE_HEIGHT={image.Height}",
-                        $"-D GAUSS_KERNEL_SIZE={kernelSize}");
+                        $"-D GAUSS_KERNEL_SIZE={kernelSize}",
+                        $"-D GAUSS_RADIUS_SIZE={gaussRadiusSize}");
                     logger.Debug("Successfully built OpenCL program.");
 
                     using (var kernel = CreateKernelOrThrow(program, "gaussianBlur"))
@@ -139,10 +141,6 @@ namespace BlurredLines.Processing
                         logger.Debug("Successfully created OpenCL kernel");
 
 
-                        var maxWorkItemSize = GetMaxWorkItemSize(device);
-
-                        logger.Information("Retrieved max work item size {MaxWorkItemSize}.",
-                            maxWorkItemSize);
 //            __constant const unsigned char *redPixels,
 //                __constant const unsigned char *greenPixels,
 //                __constant const unsigned char *bluePixels,
@@ -165,43 +163,58 @@ namespace BlurredLines.Processing
                         Cl.SetKernelArg(kernel, 6, gaussianKernelBuffer).ThrowOnError();
                         logger.Debug("Successfully set OpenCL kernel arguments");
 
-                        var numberOfBatches = (pixels.Length + maxWorkItemSize - 1) / maxWorkItemSize;
-                        var kernelEvents = new List<Event>(numberOfBatches);
-                        for (int i = 0; i < numberOfBatches; ++i)
+
+                        var maxWorkItemSizes = GetMaxWorkItemSizes(device);
+                        logger.Information("Retrieved max work item sizes {MaxWorkItemSizes}.",
+                            maxWorkItemSizes);
+
+                        var maxWorkGroupSize = GetMaxWorkGroupSize(device);
+                        logger.Information("Retrieved max work group size {MaxWorkGroupSize}.", maxWorkGroupSize);
+
+                        var verticalLocalSize = maxWorkGroupSize / 2;
+                        var horizontalLocalSize = maxWorkGroupSize / 2;
+                        var numberOfVerticalBatches = (image.Height + maxWorkItemSizes.y - 1) / maxWorkItemSizes.y;
+                        var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
+                        var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
+                        var kernelEvents = new List<Event>();
+                        for (int y = 0; y < numberOfVerticalBatches; y++)
                         {
-                            var offset = new IntPtr(i * maxWorkItemSize);
+                            var verticalOffset = new IntPtr(y * maxWorkItemSizes.y);
+                            for (int x = 0; x < numberOfHorizontalBatches; ++x)
+                            {
+                                var horizontalOffset = new IntPtr(x * maxWorkItemSizes.x);
 
-                            var numberOfRemainingPixels = pixels.Length - (i * maxWorkItemSize);
-                            var numberOfWorkItemsVal = numberOfRemainingPixels >= maxWorkItemSize
-                                ? maxWorkItemSize
-                                : numberOfRemainingPixels;
-                            var numberOfWorkItems = new IntPtr(numberOfWorkItemsVal);
+                                logger.Debug("Running batch number {VerticalBatchNumber}x{HorizontalBatchNumber} of " +
+                                             "{TotalNumberOfBatches} with {NumberOfItemsX}x{NumberOfItemsY} items.",
+                                    y,
+                                    x,
+                                    totalNumberOfBatches,
+                                    maxWorkItemSizes.x,
+                                    maxWorkItemSizes.y);
+                                // set the kernel arguments
+                                logger.Debug("Setting OpenCL local pixels kernel arguments.");
+                                Cl.SetKernelArg(kernel, 7, new IntPtr((verticalLocalSize * horizontalLocalSize + gaussRadiusSize * ) * sizeof(float) * 3), null)
+                                    .ThrowOnError();
+                                logger.Debug("Successfully set OpenCL local pixels kernel arguments.");
 
-                            logger.Debug(
-                                "Running batch number {BatchNumber} of {BatchTotal} with {NumberOfItems} items.",
-                                i,
-                                numberOfBatches,
-                                numberOfWorkItemsVal);
-                            // set the kernel arguments
-                            logger.Debug("Setting OpenCL local pixels kernel arguments.");
-                            Cl.SetKernelArg(kernel, 7, new IntPtr(numberOfWorkItemsVal * sizeof(float) * 3), null ).ThrowOnError();
-                            logger.Debug("Successfully set OpenCL local pixels kernel arguments.");
-
-                            logger.Debug("Enqueuing OpenCL kernel.");
-                            // execute the kernel
-                            Cl.EnqueueNDRangeKernel(commandQueue,
-                                    kernel,
-                                    1,
-                                    new[] {offset},
-                                    new[] {numberOfWorkItems},
-                                    null,
-                                    0,
-                                    null,
-                                    out var kernelEvent)
-                                .ThrowOnError();
-                            kernelEvents.Add(kernelEvent);
-                            logger.Debug("Successfully enqueued OpenCL kernel.");
+                                logger.Debug("Enqueuing OpenCL kernel.");
+                                // execute the kernel
+                                // TODO: Offset berechnen anhand von X und Y von Window
+                                Cl.EnqueueNDRangeKernel(commandQueue,
+                                        kernel,
+                                        2,
+                                        new[] {horizontalOffset},
+                                        new[] {numberOfWorkItems, numberOfWorkItems},
+                                        null,
+                                        0,
+                                        null,
+                                        out var kernelEvent)
+                                    .ThrowOnError();
+                                kernelEvents.Add(kernelEvent);
+                                logger.Debug("Successfully enqueued OpenCL kernel.");
+                            }
                         }
+
 
                         logger.Debug("Waiting for {NumberOfKernelEvents} kernels to complete.", kernelEvents.Count);
                         Cl.WaitForEvents((uint) kernelEvents.Count, kernelEvents.ToArray())
@@ -267,15 +280,53 @@ namespace BlurredLines.Processing
             }
         }
 
-        private static int GetMaxWorkItemSize(Device device)
+        private static (int x, int y, int z) GetMaxWorkItemSizes(Device device)
+        {
+            Cl.GetDeviceInfo(device,
+                    DeviceInfo.MaxWorkItemDimensions,
+                    IntPtr.Zero,
+                    InfoBuffer.Empty,
+                    out var paramSize)
+                .ThrowOnError();
+            
+            int dimensions;
+            using (var dimensionInfoBuffer = new InfoBuffer(paramSize))
+            {
+                Cl.GetDeviceInfo(device,
+                        DeviceInfo.MaxWorkItemDimensions,
+                        paramSize,
+                        dimensionInfoBuffer,
+                        out paramSize)
+                    .ThrowOnError();
+                dimensions = dimensionInfoBuffer.CastTo<int>();
+            }
+
+            Cl.GetDeviceInfo(device,
+                    DeviceInfo.MaxWorkItemSizes,
+                    IntPtr.Zero,
+                    InfoBuffer.Empty,
+                    out paramSize)
+                .ThrowOnError();
+            IntPtr[] maxWorkItemSizes;
+            using (var maxWorkItemSizesInfoBuffer = new InfoBuffer(paramSize))
+            {
+                Cl.GetDeviceInfo(device,
+                        DeviceInfo.MaxWorkItemSizes,
+                        paramSize,
+                        maxWorkItemSizesInfoBuffer,
+                        out paramSize)
+                    .ThrowOnError();
+                maxWorkItemSizes = maxWorkItemSizesInfoBuffer.CastToArray<IntPtr>(dimensions);
+            }
+
+            return (maxWorkItemSizes[0].ToInt32(), maxWorkItemSizes[1].ToInt32(), maxWorkItemSizes[2].ToInt32());
+        }
+        
+        private static int GetMaxWorkGroupSize(Device device)
         {
             return SystemInformation.GetDeviceInfoPart(device,
-                DeviceInfo.MaxWorkItemSizes,
-                buffer =>
-                {
-                    var maxWorkItemSizes = buffer.CastToArray<IntPtr>(1);
-                    return maxWorkItemSizes[0].ToInt32();
-                });
+                DeviceInfo.MaxWorkGroupSize,
+                buffer => buffer.CastTo<int>());
         }
 
         private static Kernel CreateKernelOrThrow(OpenCL.Net.Program program, string kernelName)
