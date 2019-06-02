@@ -3,7 +3,7 @@ using CommandLine;
 namespace BlurredLines.Commands
 {
     [Verb("blur", HelpText = "Apply a gaussian blur to an image and save as new image.")]
-    public class BlurOptions
+    public class BlurOptions : BaseOptions
     {
         [Option('i', "in", Required = true, HelpText = "Image file that should be blurred.")]
         public string InFilePath { get; set; }

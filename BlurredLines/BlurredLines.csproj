@@ -91,10 +91,12 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="Calculation\GaussianBlurKernelCalculator.cs" />
+        <Compile Include="Commands\BaseCommand.cs" />
         <Compile Include="Commands\BlurCommand.cs" />
         <Compile Include="Commands\BlurOptions.cs" />
         <Compile Include="Commands\InfoCommand.cs" />
         <Compile Include="Commands\InfoOptions.cs" />
+        <Compile Include="Commands\BaseOptions.cs" />
         <Compile Include="Processing\GaussianBlur.cs" />
         <Compile Include="Processing\Info\DeviceInfoResult.cs" />
         <Compile Include="Processing\Info\ErrorCodeExtensions.cs" />

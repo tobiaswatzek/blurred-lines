@@ -10,16 +10,16 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace BlurredLines.Commands
 {
-    public class BlurCommand
+    public class BlurCommand : BaseCommand
     {
-        private readonly Logger logger;
+        private readonly BlurOptions options;
 
-        public BlurCommand(Logger logger)
+        public BlurCommand(BlurOptions options) : base(options)
         {
-            this.logger = logger;
+            this.options = options;
         }
 
-        public int Run(BlurOptions options)
+        public int Run()
         {
             logger.Information("Running blur command with in file path: '{InFilePath}', " +
                                "out file path '{OutFilePath}' " +

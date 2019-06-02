@@ -7,16 +7,16 @@ using Serilog.Core;
 
 namespace BlurredLines.Commands
 {
-    public class InfoCommand
+    public class InfoCommand : BaseCommand
     {
-        private readonly Logger logger;
+        private readonly InfoOptions options;
 
-        public InfoCommand(Logger logger)
+        public InfoCommand(InfoOptions options) : base(options)
         {
-            this.logger = logger;
+            this.options = options;
         }
 
-        public int Run(InfoOptions options)
+        public int Run()
         {
             logger.Information("Running info command with out file path '{OutFilePath}'.",
                 options.OutFilePath);
