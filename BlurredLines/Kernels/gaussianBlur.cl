@@ -11,7 +11,6 @@ __kernel void gaussianBlur(
     __constant const float *gaussianKernel,
 	__local float3 *pixelsLocal)
 {
-    int radius = GAUSS_KERNEL_SIZE >> 1;
     // == x in image
     size_t globalIdX = get_global_id(0);
     // == y in image
@@ -40,19 +39,19 @@ __kernel void gaussianBlur(
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 
-    int rightPadding = IMAGE_WIDTH - radius;
-    int bottomPadding = IMAGE_HEIGHT - radius;
+    int rightPadding = IMAGE_WIDTH - GAUSS_RADIUS_SIZE;
+    int bottomPadding = IMAGE_HEIGHT - GAUSS_RADIUS_SIZE;
 
     float3 blurredPixel = (float3)(0);
 
     for(int i = 0; i < GAUSS_KERNEL_SIZE; ++i) {
         float gaussianKernelValue = gaussianKernel[i];
         float3 pixel = (float3)(0);
-        int globalPixelId = globalId - radius + i;
-        int localPixelId = localId - radius + i;
+        int globalPixelId = globalId - GAUSS_RADIUS_SIZE + i;
+        int localPixelId = localId - GAUSS_RADIUS_SIZE + i;
 
         // Border pixels use their own value
-        if ((x < radius || x >= rightPadding) && (globalPixelId < 0 || globalPixelId >= IMAGE_WIDTH)) {
+        if ((x < GAUSS_RADIUS_SIZE || x >= rightPadding) && (globalPixelId < 0 || globalPixelId >= IMAGE_WIDTH)) {
             pixel = pixelsLocal[localId];
         } else if (localPixelId < 0 || localPixelId >= localSize) {
             // some pixels are outside of the loaded local pixels

@@ -171,8 +171,8 @@ namespace BlurredLines.Processing
                         var maxWorkGroupSize = GetMaxWorkGroupSize(device);
                         logger.Information("Retrieved max work group size {MaxWorkGroupSize}.", maxWorkGroupSize);
 
-                        var verticalLocalSize = maxWorkGroupSize / 2;
-                        var horizontalLocalSize = maxWorkGroupSize / 2;
+                        var verticalLocalSize = (int) Math.Sqrt(maxWorkGroupSize);
+                        var horizontalLocalSize = (int) Math.Sqrt(maxWorkGroupSize);
                         var numberOfVerticalBatches = (image.Height + maxWorkItemSizes.y - 1) / maxWorkItemSizes.y;
                         var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
@@ -180,9 +180,11 @@ namespace BlurredLines.Processing
                         for (int y = 0; y < numberOfVerticalBatches; y++)
                         {
                             var verticalOffset = new IntPtr(y * maxWorkItemSizes.y);
+                            logger.Debug("Vertical offset is {VerticalOffset}.", verticalOffset.ToInt32());
                             for (int x = 0; x < numberOfHorizontalBatches; ++x)
                             {
                                 var horizontalOffset = new IntPtr(x * maxWorkItemSizes.x);
+                                logger.Debug("Horizontal offset is {HorizontalOffset}.", horizontalOffset.ToInt32());
 
                                 logger.Debug("Running batch number {VerticalBatchNumber}x{HorizontalBatchNumber} of " +
                                              "{TotalNumberOfBatches} with {NumberOfItemsX}x{NumberOfItemsY} items.",
@@ -193,19 +195,27 @@ namespace BlurredLines.Processing
                                     maxWorkItemSizes.y);
                                 // set the kernel arguments
                                 logger.Debug("Setting OpenCL local pixels kernel arguments.");
-                                Cl.SetKernelArg(kernel, 7, new IntPtr((verticalLocalSize * horizontalLocalSize + gaussRadiusSize * ) * sizeof(float) * 3), null)
+                                Cl.SetKernelArg(kernel,
+                                        7,
+                                        // Combine the size of the work group with padding on the horizontal and vertical sides
+                                        // and multiply it by the size of float3 to allocate enough memory for the workgroup
+                                        new IntPtr(((verticalLocalSize * horizontalLocalSize) +
+                                                    (gaussRadiusSize * verticalLocalSize * 2) +
+                                                    (gaussRadiusSize * horizontalLocalSize * 2)) *
+                                                   sizeof(float) *
+                                                   3),
+                                        null)
                                     .ThrowOnError();
                                 logger.Debug("Successfully set OpenCL local pixels kernel arguments.");
 
                                 logger.Debug("Enqueuing OpenCL kernel.");
                                 // execute the kernel
-                                // TODO: Offset berechnen anhand von X und Y von Window
                                 Cl.EnqueueNDRangeKernel(commandQueue,
                                         kernel,
                                         2,
-                                        new[] {horizontalOffset},
-                                        new[] {numberOfWorkItems, numberOfWorkItems},
-                                        null,
+                                        new[] {horizontalOffset, verticalOffset},
+                                        new[] {new IntPtr(maxWorkItemSizes.x), new IntPtr(maxWorkItemSizes.y)},
+                                        new[] {new IntPtr(horizontalLocalSize), new IntPtr(verticalLocalSize)},
                                         0,
                                         null,
                                         out var kernelEvent)
@@ -288,7 +298,7 @@ namespace BlurredLines.Processing
                     InfoBuffer.Empty,
                     out var paramSize)
                 .ThrowOnError();
-            
+
             int dimensions;
             using (var dimensionInfoBuffer = new InfoBuffer(paramSize))
             {
@@ -321,7 +331,7 @@ namespace BlurredLines.Processing
 
             return (maxWorkItemSizes[0].ToInt32(), maxWorkItemSizes[1].ToInt32(), maxWorkItemSizes[2].ToInt32());
         }
-        
+
         private static int GetMaxWorkGroupSize(Device device)
         {
             return SystemInformation.GetDeviceInfoPart(device,
