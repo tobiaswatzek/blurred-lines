@@ -177,6 +177,8 @@ namespace BlurredLines.Processing
                         var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
                         var kernelEvents = new List<Event>();
+
+                        
                         for (int y = 0; y < numberOfVerticalBatches; y++)
                         {
                             var verticalOffset = new IntPtr(y * maxWorkItemSizes.y);
@@ -199,8 +201,8 @@ namespace BlurredLines.Processing
                                         7,
                                         // Combine the size of the work group with padding on the horizontal and vertical sides
                                         // and multiply it by the size of float3 to allocate enough memory for the workgroup
-                                        new IntPtr((verticalLocalSize + gaussKernelSize - 1) *
-                                                   (horizontalLocalSize + gaussKernelSize - 1) *
+                                        new IntPtr((verticalLocalSize + gaussKernelSize + 1) *
+                                                   (horizontalLocalSize + gaussKernelSize + 1) *
                                                    sizeof(float) *
                                                    3),
                                         null)

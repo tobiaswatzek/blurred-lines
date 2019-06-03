@@ -27,8 +27,8 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
   }
 
   // map 2d to 1d
-  size_t globalId = IMAGE_WIDTH * globalIdX + globalIdY;
-  size_t localId = localSizeX * localIdX + localIdY;
+  size_t globalId = IMAGE_WIDTH * globalIdY + globalIdX;
+  size_t localId = localSizeX * localIdY + localIdX;
 
   pixelsLocal[localId] = (float3)(redPixels[globalId], greenPixels[globalId],
                                   bluePixels[globalId]);
@@ -37,13 +37,13 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
     // pixel is on the left side
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
       size_t offsetGlobalId;
-      // if we would go outside of the image use our own pixel value
-      if (globalIdX < i) {
-        offsetGlobalId = globalId;
+      if (globalIdX >= i) {
+        offsetGlobalId = IMAGE_WIDTH * globalIdY + (globalIdX - i);
       } else {
-        offsetGlobalId = IMAGE_WIDTH * (globalIdX - i) + globalIdY;
+        // if we would go outside of the image use our own pixel value
+        offsetGlobalId = globalId;
       }
-      size_t offsetLocalId = localSizeX * (localIdX - i) + localIdY;
+      size_t offsetLocalId = localSizeX * localIdY + (localIdX - i);
       pixelsLocal[offsetLocalId] =
           (float3)(redPixels[offsetGlobalId], greenPixels[offsetGlobalId],
                    bluePixels[offsetGlobalId]);
@@ -54,13 +54,13 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
     // pixel is on the right side
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
       size_t offsetGlobalId;
-      // if we would go outside of the image use our own pixel value
-      if ((globalIdX + i) > IMAGE_WIDTH) {
-        offsetGlobalId = globalId;
+      if ((globalIdX + i) <= IMAGE_WIDTH) {
+        offsetGlobalId = IMAGE_WIDTH * globalIdY + (globalIdX + i);
       } else {
-        offsetGlobalId = IMAGE_WIDTH * (globalIdX + i) + globalIdY;
+        // if we would go outside of the image use our own pixel value
+        offsetGlobalId = globalId;
       }
-      size_t offsetLocalId = localSizeX * (localIdX + i) + localIdY;
+      size_t offsetLocalId = localSizeX * localIdY + (localIdX + i);
       pixelsLocal[offsetLocalId] =
           (float3)(redPixels[offsetGlobalId], greenPixels[offsetGlobalId],
                    bluePixels[offsetGlobalId]);
@@ -71,13 +71,13 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
     // pixel is on the top
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
       size_t offsetGlobalId;
-      // if we would go outside of the image use our own pixel value
-      if (globalIdY < i) {
-        offsetGlobalId = globalId;
+      if (globalIdY >= i) {
+        offsetGlobalId = IMAGE_WIDTH * (globalIdY - i) + globalIdX;
       } else {
-        offsetGlobalId = IMAGE_WIDTH * (globalIdX) + (globalIdY - i);
+        // if we would go outside of the image use our own pixel value
+        offsetGlobalId = globalId;
       }
-      size_t offsetLocalId = localSizeX * localIdX + (localIdY - i);
+      size_t offsetLocalId = localSizeX * (localIdY - i) + localIdX;
       pixelsLocal[offsetLocalId] =
           (float3)(redPixels[offsetGlobalId], greenPixels[offsetGlobalId],
                    bluePixels[offsetGlobalId]);
@@ -85,15 +85,16 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
   } else if ((localIdY - GAUSS_RADIUS_SIZE) ==
                  (localSizeY - GAUSS_KERNEL_SIZE + 1) ||
              globalIdY == IMAGE_HEIGHT) {
+    // pixel is on the bottom
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
       size_t offsetGlobalId;
-      // if we would go outside of the image use our own pixel value
-      if ((globalIdY + i) > IMAGE_HEIGHT) {
-        offsetGlobalId = globalId;
+      if ((globalIdY + i) <= IMAGE_HEIGHT) {
+        offsetGlobalId = IMAGE_WIDTH * (globalIdY + i) + globalIdX;
       } else {
-        offsetGlobalId = IMAGE_WIDTH * globalIdX + (globalIdY + i);
+        // if we would go outside of the image use our own pixel value
+        offsetGlobalId = globalId;
       }
-      size_t offsetLocalId = localSizeX * localIdX + (localIdY + i);
+      size_t offsetLocalId = localSizeX * (localIdY + i) + localIdX;
       pixelsLocal[offsetLocalId] =
           (float3)(redPixels[offsetGlobalId], greenPixels[offsetGlobalId],
                    bluePixels[offsetGlobalId]);
@@ -105,22 +106,28 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
   float3 blurredPixel = (float3)(0);
 
   for (int x = -GAUSS_RADIUS_SIZE; x <= GAUSS_RADIUS_SIZE; ++x) {
-    size_t offsetLocalId = localSizeX * (localIdX + x) + localIdY ;
+    size_t offsetLocalId = localSizeX * localIdY + (localIdX + x);
+    if(localIdX == GAUSS_RADIUS_SIZE && globalId < 256) {
+        printf("GID: %d; x %d; off %d;", globalId, x, offsetLocalId);
+    }
     float gaussianKernelValue = gaussianKernel[x + GAUSS_RADIUS_SIZE];
     float3 pixel = pixelsLocal[offsetLocalId];
 
     // use the power of built in vector types
     blurredPixel += pixel * gaussianKernelValue;
   }
-  
+
   for (int y = -GAUSS_RADIUS_SIZE; y <= GAUSS_RADIUS_SIZE; ++y) {
-      size_t offsetLocalId = localSizeX * localIdX + (localIdY + y);
+      size_t offsetLocalId = localSizeX * (localIdY + y) + localIdX;
+
       float gaussianKernelValue = gaussianKernel[y + GAUSS_RADIUS_SIZE];
       float3 pixel = pixelsLocal[offsetLocalId];
-  
+      
       // use the power of built in vector types
       blurredPixel += pixel * gaussianKernelValue;
   }
+  
+  blurredPixel /= 2;
 
   // the _sat modifier changes values that over or underflow the target type to
   // the nearest representable value so 259f would be set to 255

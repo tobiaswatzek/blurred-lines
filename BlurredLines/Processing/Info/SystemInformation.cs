@@ -74,7 +74,8 @@ namespace BlurredLines.Processing.Info
                 MaxWorkGroupSize = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkGroupSize),
                 MaxWorkItemSizes = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkItemSizes),
                 MaxWorkItemDimensions = GetDeviceInfoPartInt(device, DeviceInfo.MaxWorkItemDimensions),
-                MaxConstantBufferSize = GetDeviceInfoPartUlong(device, DeviceInfo.MaxConstantBufferSize)
+                MaxConstantBufferSize = GetDeviceInfoPartUlong(device, DeviceInfo.MaxConstantBufferSize),
+                LocalMemSize = GetDeviceInfoPartUlong(device, DeviceInfo.LocalMemSize)
             };
         }
 

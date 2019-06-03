@@ -15,5 +15,6 @@ namespace BlurredLines.Processing.Info
         public int MaxWorkGroupSize { get; set; }
         public int MaxWorkItemSizes { get; set; }
         public ulong MaxConstantBufferSize { get; set; }
+        public ulong LocalMemSize { get; set; }
     }
 }
