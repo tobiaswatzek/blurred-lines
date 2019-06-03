@@ -26,9 +26,9 @@ namespace BlurredLines.Processing
             kernelCalculator = new GaussianBlurKernelCalculator();
         }
 
-        public Image<Rgb24> Apply(Image<Rgb24> image, int gaussKernelSize)
+        public Image<Rgb24> Apply(Image<Rgb24> image, int gaussKernelSize, double sigma)
         {
-            var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(gaussKernelSize);
+            var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(gaussKernelSize, sigma);
 
             var platforms = Cl.GetPlatformIDs(out var error);
             error.ThrowOnError();
@@ -141,18 +141,6 @@ namespace BlurredLines.Processing
                         logger.Debug("Successfully created OpenCL kernel");
 
 
-//            __constant const unsigned char *redPixels,
-//                __constant const unsigned char *greenPixels,
-//                __constant const unsigned char *bluePixels,
-//                __global unsigned char *redPixelsOut,
-//                __global unsigned char *greenPixelsOut,
-//                __global unsigned char *bluePixelsOut,
-//                __local unsigned char *redPixelsLocal,
-//                __local unsigned char *greenPixelsLocal,
-//                __local unsigned char *bluePixelsLocal,
-//                __constant  const float *gaussianKernel,
-//            int kernelSize,
-//            int width)
                         logger.Debug("Setting OpenCL kernel arguments.");
                         Cl.SetKernelArg(kernel, 0, redPixelsBuffer).ThrowOnError();
                         Cl.SetKernelArg(kernel, 1, greenPixelsBuffer).ThrowOnError();
@@ -178,7 +166,7 @@ namespace BlurredLines.Processing
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
                         var kernelEvents = new List<Event>();
 
-                        
+
                         for (int y = 0; y < numberOfVerticalBatches; y++)
                         {
                             var verticalOffset = new IntPtr(y * maxWorkItemSizes.y);
@@ -201,8 +189,8 @@ namespace BlurredLines.Processing
                                         7,
                                         // Combine the size of the work group with padding on the horizontal and vertical sides
                                         // and multiply it by the size of float3 to allocate enough memory for the workgroup
-                                        new IntPtr((verticalLocalSize + gaussKernelSize + 1) *
-                                                   (horizontalLocalSize + gaussKernelSize + 1) *
+                                        new IntPtr((verticalLocalSize + gaussKernelSize + 3) *
+                                                   (horizontalLocalSize + gaussKernelSize + 3) *
                                                    sizeof(float) *
                                                    3),
                                         null)

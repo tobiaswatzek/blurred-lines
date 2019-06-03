@@ -14,17 +14,16 @@ namespace BlurredLines.Calculation
         ///     Calculate a one dimensional kernel for the given <see cref="kernelSize"/>.
         /// </summary>
         /// <param name="kernelSize">An odd number greater than 2.</param>
+        /// <param name="sigma"></param>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         /// <returns></returns>
-        public float[] CalculateOneDimensionalKernel(int kernelSize)
+        public float[] CalculateOneDimensionalKernel(int kernelSize, double sigma)
         {
             if (kernelSize < 3 || kernelSize % 2 == 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(kernelSize), "Has to be an odd number greater than 2.");
             }
 
-
-            const double sigma = 1d;
             const double sampleCount = 1000d;
 
 

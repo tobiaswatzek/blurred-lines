@@ -33,17 +33,17 @@ namespace BlurredLines.Commands
                 return 1;
             }
 
-            if (options.KernelSize < 1 || options.KernelSize > 9)
+            if (options.KernelSize < 1)
             {
                 logger.Error("Kernel size has to be between 1 and 9 and not {KernelSize}.", options.KernelSize);
                 return 1;
             }
 
-            var gaussianBlurKernelCalculator = new GaussianBlurKernelCalculator();
-
-            var gaussianKernel = gaussianBlurKernelCalculator.CalculateOneDimensionalKernel(options.KernelSize);
-
-            logger.Debug("Gaussian kernel is {GaussianKernel}.", gaussianKernel);
+            if (options.Sigma < 0)
+            {
+                logger.Error("Sigma has to be a number > 0.");
+                return 1;
+            }
 
             logger.Information("Loading image {InFilePath}.", options.InFilePath);
             using (var image = Image.Load<Rgb24>(options.InFilePath))
@@ -55,7 +55,7 @@ namespace BlurredLines.Commands
 
                 var gaussianBlur = new GaussianBlur(logger);
                 logger.Information("Starting image blur processing.");
-                var blurredImage = gaussianBlur.Apply(image, options.KernelSize);
+                var blurredImage = gaussianBlur.Apply(image, options.KernelSize, options.Sigma);
                 logger.Information("Finished image blur processing.");
                 
                 logger.Debug("Storing image at '{OutputImageLocation}'.", Path.GetFullPath(options.OutFilePath));

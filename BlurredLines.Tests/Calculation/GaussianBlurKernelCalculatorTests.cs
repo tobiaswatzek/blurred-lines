@@ -21,7 +21,7 @@ namespace BlurredLines.Tests.Calculation
         public void ItShallCalculateCorrectOneDimensionalKernelValues(int kernelSize, float[] expectedKernel)
         {
             // When
-            var actualKernelValues = sut.CalculateOneDimensionalKernel(kernelSize);
+            var actualKernelValues = sut.CalculateOneDimensionalKernel(kernelSize, 1);
 
             // Then
             actualKernelValues.Length.Should().Be(expectedKernel.Length);
@@ -39,7 +39,7 @@ namespace BlurredLines.Tests.Calculation
         public void ItShallThrowAnExceptionForInvalidKernelSizes(int kernelSize)
         {
             // When
-            Action action = () => sut.CalculateOneDimensionalKernel(kernelSize);
+            Action action = () => sut.CalculateOneDimensionalKernel(kernelSize, 1);
             
             // Then
             action.Should().Throw<ArgumentOutOfRangeException>();

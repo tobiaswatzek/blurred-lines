@@ -13,5 +13,8 @@ namespace BlurredLines.Commands
 
         [Option('k', "kernel", Default = 3, HelpText = "Kernel size that should be used.")]
         public int KernelSize { get; set; }
+        
+        [Option('s', "sigma", Default = 1, HelpText = "Sigma that should be used for the kernel calculation.")]
+        public double Sigma { get; set; }
     }
 }

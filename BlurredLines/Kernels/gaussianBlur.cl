@@ -49,7 +49,7 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
                    bluePixels[offsetGlobalId]);
     }
   } else if ((localIdX - GAUSS_RADIUS_SIZE) ==
-                 (localSizeX - GAUSS_KERNEL_SIZE + 1) ||
+                 (localSizeX - GAUSS_KERNEL_SIZE ) ||
              globalIdX == IMAGE_WIDTH) {
     // pixel is on the right side
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
@@ -83,7 +83,7 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
                    bluePixels[offsetGlobalId]);
     }
   } else if ((localIdY - GAUSS_RADIUS_SIZE) ==
-                 (localSizeY - GAUSS_KERNEL_SIZE + 1) ||
+                 (localSizeY - GAUSS_KERNEL_SIZE ) ||
              globalIdY == IMAGE_HEIGHT) {
     // pixel is on the bottom
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
@@ -107,9 +107,7 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
 
   for (int x = -GAUSS_RADIUS_SIZE; x <= GAUSS_RADIUS_SIZE; ++x) {
     size_t offsetLocalId = localSizeX * localIdY + (localIdX + x);
-    if(localIdX == GAUSS_RADIUS_SIZE && globalId < 256) {
-        printf("GID: %d; x %d; off %d;", globalId, x, offsetLocalId);
-    }
+    
     float gaussianKernelValue = gaussianKernel[x + GAUSS_RADIUS_SIZE];
     float3 pixel = pixelsLocal[offsetLocalId];
 
