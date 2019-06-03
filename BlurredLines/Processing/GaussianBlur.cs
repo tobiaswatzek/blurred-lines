@@ -26,9 +26,9 @@ namespace BlurredLines.Processing
             kernelCalculator = new GaussianBlurKernelCalculator();
         }
 
-        public Image<Rgb24> Apply(Image<Rgb24> image, int kernelSize)
+        public Image<Rgb24> Apply(Image<Rgb24> image, int gaussKernelSize)
         {
-            var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(kernelSize);
+            var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(gaussKernelSize);
 
             var platforms = Cl.GetPlatformIDs(out var error);
             error.ThrowOnError();
@@ -64,7 +64,7 @@ namespace BlurredLines.Processing
             using (var greenPixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
             using (var bluePixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
                 // gaussian kernel
-            using (var gaussianKernelBuffer = CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, kernelSize))
+            using (var gaussianKernelBuffer = CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, gaussKernelSize))
             {
                 logger.Debug("Created context, command queue and buffers.");
 
@@ -109,7 +109,7 @@ namespace BlurredLines.Processing
                         gaussianKernelBuffer,
                         Bool.False,
                         0,
-                        kernelSize,
+                        gaussKernelSize,
                         gaussianKernel,
                         0,
                         null,
@@ -125,14 +125,14 @@ namespace BlurredLines.Processing
                 var programSource = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Kernels/gaussianBlur.cl"));
                 using (var program = CreateProgramWithSourceOrThrow(context, programSource))
                 {
-                    var gaussRadiusSize = kernelSize >> 1;
+                    var gaussRadiusSize = gaussKernelSize >> 1;
                     logger.Debug("Building OpenCL program.");
                     BuildProgramOrThrow(program,
                         1,
                         new[] {device},
                         $"-D IMAGE_WIDTH={image.Width}",
                         $"-D IMAGE_HEIGHT={image.Height}",
-                        $"-D GAUSS_KERNEL_SIZE={kernelSize}",
+                        $"-D GAUSS_KERNEL_SIZE={gaussKernelSize}",
                         $"-D GAUSS_RADIUS_SIZE={gaussRadiusSize}");
                     logger.Debug("Successfully built OpenCL program.");
 
@@ -199,9 +199,8 @@ namespace BlurredLines.Processing
                                         7,
                                         // Combine the size of the work group with padding on the horizontal and vertical sides
                                         // and multiply it by the size of float3 to allocate enough memory for the workgroup
-                                        new IntPtr(((verticalLocalSize * horizontalLocalSize) +
-                                                    (gaussRadiusSize * verticalLocalSize * 2) +
-                                                    (gaussRadiusSize * horizontalLocalSize * 2)) *
+                                        new IntPtr((verticalLocalSize + gaussKernelSize - 1) *
+                                                   (horizontalLocalSize + gaussKernelSize - 1) *
                                                    sizeof(float) *
                                                    3),
                                         null)
