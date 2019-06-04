@@ -159,13 +159,19 @@ namespace BlurredLines.Processing
                         var maxWorkGroupSize = GetMaxWorkGroupSize(device);
                         logger.Information("Retrieved max work group size {MaxWorkGroupSize}.", maxWorkGroupSize);
 
-                        var verticalLocalSize = (int) Math.Sqrt(maxWorkGroupSize);
-                        var horizontalLocalSize = (int) Math.Sqrt(maxWorkGroupSize);
+                        var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
+
+                        logger.Information(
+                            "Retrieved preferred work group size multiple {PreferredWorkGroupSizeMultiple}.",
+                            preferredWorkGroupSizeMultiple);
+
+
+                        var verticalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
+                        var horizontalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
                         var numberOfVerticalBatches = (image.Height + maxWorkItemSizes.y - 1) / maxWorkItemSizes.y;
                         var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
                         var kernelEvents = new List<Event>();
-
 
                         for (int y = 0; y < numberOfVerticalBatches; y++)
                         {
@@ -277,6 +283,20 @@ namespace BlurredLines.Processing
                     }
                 }
             }
+        }
+
+        private static int GetPreferredWorkGroupSizeMultiple(Kernel kernel, Device device)
+        {
+            ErrorCode error;
+            int preferredWorkGroupSizeMultiple;
+            // CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE == (KernelWorkGroupInfo)0x11B3
+            using (var kernelWorkGroupInfo =
+                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo) 0x11B3, out error))
+            {
+                preferredWorkGroupSizeMultiple = kernelWorkGroupInfo.CastTo<int>();
+            }
+
+            return preferredWorkGroupSizeMultiple;
         }
 
         private static (int x, int y, int z) GetMaxWorkItemSizes(Device device)
