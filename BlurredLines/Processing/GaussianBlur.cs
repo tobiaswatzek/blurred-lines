@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
 using BlurredLines.Calculation;
 using BlurredLines.Processing.Info;
 using OpenCL.Net;
@@ -11,6 +5,10 @@ using Serilog.Core;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Image = SixLabors.ImageSharp.Image;
 
 namespace BlurredLines.Processing
@@ -55,15 +53,15 @@ namespace BlurredLines.Processing
             logger.Debug("Start creating context, command queue and buffers.");
             using (var context = CreateContextOrThrow(devices))
             using (var commandQueue = CreateCommandQueueOrThrow(context, device))
-                // input buffers
+            // input buffers
             using (var redPixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
             using (var greenPixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
             using (var bluePixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
-                // output buffers
+            // output buffers
             using (var redPixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
             using (var greenPixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
             using (var bluePixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
-                // gaussian kernel
+            // gaussian kernel
             using (var gaussianKernelBuffer = CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, gaussKernelSize))
             {
                 logger.Debug("Created context, command queue and buffers.");
@@ -117,7 +115,7 @@ namespace BlurredLines.Processing
                     .ThrowOnError();
                 writeEvents.Add(gaussianKernelEvent);
 
-                Cl.WaitForEvents((uint) writeEvents.Count, writeEvents.ToArray()).ThrowOnError();
+                Cl.WaitForEvents((uint)writeEvents.Count, writeEvents.ToArray()).ThrowOnError();
 
                 logger.Debug("Wrote data to all buffers.");
 
@@ -129,7 +127,7 @@ namespace BlurredLines.Processing
                     logger.Debug("Building OpenCL program.");
                     BuildProgramOrThrow(program,
                         1,
-                        new[] {device},
+                        new[] { device },
                         $"-D IMAGE_WIDTH={image.Width}",
                         $"-D IMAGE_HEIGHT={image.Height}",
                         $"-D GAUSS_KERNEL_SIZE={gaussKernelSize}",
@@ -159,15 +157,14 @@ namespace BlurredLines.Processing
                         var maxWorkGroupSize = GetMaxWorkGroupSize(device);
                         logger.Information("Retrieved max work group size {MaxWorkGroupSize}.", maxWorkGroupSize);
 
-                        var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
+                        var localSize = GetLocalSize(maxWorkGroupSize, kernel, device);
 
                         logger.Information(
-                            "Retrieved preferred work group size multiple {PreferredWorkGroupSizeMultiple}.",
-                            preferredWorkGroupSizeMultiple);
+                            "Retrieved local size {LocalSize}.",
+                            localSize);
 
-
-                        var verticalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
-                        var horizontalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
+                        var verticalLocalSize = localSize;
+                        var horizontalLocalSize = localSize;
                         var numberOfVerticalBatches = (image.Height + maxWorkItemSizes.y - 1) / maxWorkItemSizes.y;
                         var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
@@ -208,9 +205,9 @@ namespace BlurredLines.Processing
                                 Cl.EnqueueNDRangeKernel(commandQueue,
                                         kernel,
                                         2,
-                                        new[] {horizontalOffset, verticalOffset},
-                                        new[] {new IntPtr(maxWorkItemSizes.x), new IntPtr(maxWorkItemSizes.y)},
-                                        new[] {new IntPtr(horizontalLocalSize), new IntPtr(verticalLocalSize)},
+                                        new[] { horizontalOffset, verticalOffset },
+                                        new[] { new IntPtr(maxWorkItemSizes.x), new IntPtr(maxWorkItemSizes.y) },
+                                        new[] { new IntPtr(horizontalLocalSize), new IntPtr(verticalLocalSize) },
                                         0,
                                         null,
                                         out var kernelEvent)
@@ -222,7 +219,7 @@ namespace BlurredLines.Processing
 
 
                         logger.Debug("Waiting for {NumberOfKernelEvents} kernels to complete.", kernelEvents.Count);
-                        Cl.WaitForEvents((uint) kernelEvents.Count, kernelEvents.ToArray())
+                        Cl.WaitForEvents((uint)kernelEvents.Count, kernelEvents.ToArray())
                             .ThrowOnError();
                         logger.Debug("Kernel events finished.");
 
@@ -266,7 +263,7 @@ namespace BlurredLines.Processing
                             .ThrowOnError();
                         readEvents.Add(bluePixelsBufferReadEvent);
 
-                        Cl.WaitForEvents((uint) readEvents.Count, readEvents.ToArray());
+                        Cl.WaitForEvents((uint)readEvents.Count, readEvents.ToArray());
                         logger.Debug("Successfully read result from OpenCL buffers.");
 
                         logger.Debug("Converting data to pixels.");
@@ -285,13 +282,27 @@ namespace BlurredLines.Processing
             }
         }
 
+        private static int GetLocalSize(int maxWorkGroupSize, Kernel kernel, Device device)
+        {
+            var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
+            var result = (int)Math.Sqrt(preferredWorkGroupSizeMultiple);
+
+            // Ensure that the maxWorkGroupSize is evenly divisible by the local size
+            while (maxWorkGroupSize % result != 0)
+            {
+                result--;
+            }
+
+            return result;
+        }
+
         private static int GetPreferredWorkGroupSizeMultiple(Kernel kernel, Device device)
         {
             ErrorCode error;
             int preferredWorkGroupSizeMultiple;
             // CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE == (KernelWorkGroupInfo)0x11B3
             using (var kernelWorkGroupInfo =
-                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo) 0x11B3, out error))
+                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo)0x11B3, out error))
             {
                 preferredWorkGroupSizeMultiple = kernelWorkGroupInfo.CastTo<int>();
             }
@@ -377,7 +388,7 @@ namespace BlurredLines.Processing
 
         private static OpenCL.Net.Program CreateProgramWithSourceOrThrow(Context context, string programSource)
         {
-            var program = Cl.CreateProgramWithSource(context, 1, new string[] {programSource}, null, out var error);
+            var program = Cl.CreateProgramWithSource(context, 1, new string[] { programSource }, null, out var error);
             error.ThrowOnError();
             return program;
         }
