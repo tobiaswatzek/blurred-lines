@@ -33,7 +33,7 @@ namespace BlurredLines.Processing.Info
         /// </summary>
         /// <param name="platform"></param>
         /// <returns></returns>
-        public static PlatformInfoResult GetPlatformInfo(Platform platform)
+        private static PlatformInfoResult GetPlatformInfo(Platform platform)
         {
             var info = new PlatformInfoResult
             {
@@ -61,7 +61,7 @@ namespace BlurredLines.Processing.Info
         /// </summary>
         /// <param name="device"></param>
         /// <returns></returns>
-        public static DeviceInfoResult GetDeviceInfo(Device device)
+        private static DeviceInfoResult GetDeviceInfo(Device device)
         {
             return new DeviceInfoResult
             {

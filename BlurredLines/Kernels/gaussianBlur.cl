@@ -22,17 +22,21 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
   size_t localSizeX = get_local_size(0) + GAUSS_KERNEL_SIZE - 1;
   size_t localSizeY = get_local_size(1) + GAUSS_KERNEL_SIZE - 1;
 
+  // If we are outside of the image we don't do anything
   if (globalIdX >= IMAGE_WIDTH && globalIdY >= IMAGE_HEIGHT) {
     return;
   }
 
-  // map 2d to 1d
+  // map 2d ids to 1d
   size_t globalId = IMAGE_WIDTH * globalIdY + globalIdX;
   size_t localId = localSizeX * localIdY + localIdX;
 
+  // load our own pixel value into local storage
   pixelsLocal[localId] = (float3)(redPixels[globalId], greenPixels[globalId],
                                   bluePixels[globalId]);
 
+  // now we check if we are on the border of a work group
+  // we load a halo of pixels into local memory
   if ((localIdX - GAUSS_RADIUS_SIZE) == 0) {
     // pixel is on the left side
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
@@ -49,7 +53,7 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
                    bluePixels[offsetGlobalId]);
     }
   } else if ((localIdX - GAUSS_RADIUS_SIZE) ==
-                 (localSizeX - GAUSS_KERNEL_SIZE ) ||
+                 (localSizeX - GAUSS_KERNEL_SIZE) ||
              globalIdX == IMAGE_WIDTH) {
     // pixel is on the right side
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
@@ -83,7 +87,7 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
                    bluePixels[offsetGlobalId]);
     }
   } else if ((localIdY - GAUSS_RADIUS_SIZE) ==
-                 (localSizeY - GAUSS_KERNEL_SIZE ) ||
+                 (localSizeY - GAUSS_KERNEL_SIZE) ||
              globalIdY == IMAGE_HEIGHT) {
     // pixel is on the bottom
     for (int i = 1; i <= GAUSS_RADIUS_SIZE; ++i) {
@@ -101,13 +105,15 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
     }
   }
 
+  // wait until all items in the work group have loaded the pixels into memory
   barrier(CLK_LOCAL_MEM_FENCE);
 
   float3 blurredPixel = (float3)(0);
 
+  // combine the horizontal pixels
   for (int x = -GAUSS_RADIUS_SIZE; x <= GAUSS_RADIUS_SIZE; ++x) {
     size_t offsetLocalId = localSizeX * localIdY + (localIdX + x);
-    
+
     float gaussianKernelValue = gaussianKernel[x + GAUSS_RADIUS_SIZE];
     float3 pixel = pixelsLocal[offsetLocalId];
 
@@ -115,16 +121,18 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
     blurredPixel += pixel * gaussianKernelValue;
   }
 
+  // combine the vertical pixels
   for (int y = -GAUSS_RADIUS_SIZE; y <= GAUSS_RADIUS_SIZE; ++y) {
-      size_t offsetLocalId = localSizeX * (localIdY + y) + localIdX;
+    size_t offsetLocalId = localSizeX * (localIdY + y) + localIdX;
 
-      float gaussianKernelValue = gaussianKernel[y + GAUSS_RADIUS_SIZE];
-      float3 pixel = pixelsLocal[offsetLocalId];
-      
-      // use the power of built in vector types
-      blurredPixel += pixel * gaussianKernelValue;
+    float gaussianKernelValue = gaussianKernel[y + GAUSS_RADIUS_SIZE];
+    float3 pixel = pixelsLocal[offsetLocalId];
+
+    // use the power of built in vector types
+    blurredPixel += pixel * gaussianKernelValue;
   }
-  
+
+  // divide the resulting pixel by two to reduce the brightness
   blurredPixel /= 2;
 
   // the _sat modifier changes values that over or underflow the target type to
@@ -133,4 +141,3 @@ __kernel void gaussianBlur(__global const unsigned char *redPixels,
   greenPixelsOut[globalId] = convert_uchar_sat(blurredPixel.s1);
   bluePixelsOut[globalId] = convert_uchar_sat(blurredPixel.s2);
 }
-

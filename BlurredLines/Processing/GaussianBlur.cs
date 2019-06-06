@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
 using BlurredLines.Calculation;
 using BlurredLines.Processing.Info;
 using OpenCL.Net;
@@ -11,10 +5,17 @@ using Serilog.Core;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Image = SixLabors.ImageSharp.Image;
 
 namespace BlurredLines.Processing
 {
+    /// <summary>
+    ///     Class to apply a gaussian blur filter to an image.
+    /// </summary>
     public class GaussianBlur
     {
         private readonly Logger logger;
@@ -26,6 +27,14 @@ namespace BlurredLines.Processing
             kernelCalculator = new GaussianBlurKernelCalculator();
         }
 
+        /// <summary>
+        ///     Apply a gaussian blur filter with the given <see cref="gaussKernelSize"/> and <see cref="sigma"/> to the given <see cref="image"/>.
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="gaussKernelSize"></param>
+        /// <param name="sigma"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public Image<Rgb24> Apply(Image<Rgb24> image, int gaussKernelSize, double sigma)
         {
             var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(gaussKernelSize, sigma);
@@ -159,15 +168,14 @@ namespace BlurredLines.Processing
                         var maxWorkGroupSize = GetMaxWorkGroupSize(device);
                         logger.Information("Retrieved max work group size {MaxWorkGroupSize}.", maxWorkGroupSize);
 
-                        var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
+                        var localSize = GetLocalSize(maxWorkGroupSize, kernel, device);
 
                         logger.Information(
-                            "Retrieved preferred work group size multiple {PreferredWorkGroupSizeMultiple}.",
-                            preferredWorkGroupSizeMultiple);
+                            "Retrieved local size {LocalSize}.",
+                            localSize);
 
-
-                        var verticalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
-                        var horizontalLocalSize = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
+                        var verticalLocalSize = localSize;
+                        var horizontalLocalSize = localSize;
                         var numberOfVerticalBatches = (image.Height + maxWorkItemSizes.y - 1) / maxWorkItemSizes.y;
                         var numberOfHorizontalBatches = (image.Width + maxWorkItemSizes.x - 1) / maxWorkItemSizes.x;
                         var totalNumberOfBatches = numberOfVerticalBatches * numberOfHorizontalBatches;
@@ -285,14 +293,36 @@ namespace BlurredLines.Processing
             }
         }
 
+        private int GetLocalSize(int maxWorkGroupSize, Kernel kernel, Device device)
+        {
+            var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
+            var result = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
+
+            // Ensure that the maxWorkGroupSize is evenly divisible by the local size
+            while (result > 0 && maxWorkGroupSize % result != 0)
+            {
+                --result;
+            }
+
+            if (result > 0)
+            {
+                return result;
+            }
+
+            logger.Error(
+                "Could not find a work group size that divides max work group size {MaxWorkGroupSize} evenly.",
+                maxWorkGroupSize);
+            throw new InvalidOperationException("Could not find a work group size that divides max work group size");
+        }
+
         private static int GetPreferredWorkGroupSizeMultiple(Kernel kernel, Device device)
         {
-            ErrorCode error;
             int preferredWorkGroupSizeMultiple;
             // CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE == (KernelWorkGroupInfo)0x11B3
             using (var kernelWorkGroupInfo =
-                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo) 0x11B3, out error))
+                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo) 0x11B3, out var error))
             {
+                error.ThrowOnError();
                 preferredWorkGroupSizeMultiple = kernelWorkGroupInfo.CastTo<int>();
             }
 
