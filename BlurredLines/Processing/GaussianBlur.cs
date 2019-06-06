@@ -13,6 +13,9 @@ using Image = SixLabors.ImageSharp.Image;
 
 namespace BlurredLines.Processing
 {
+    /// <summary>
+    ///     Class to apply a gaussian blur filter to an image.
+    /// </summary>
     public class GaussianBlur
     {
         private readonly Logger logger;
@@ -24,6 +27,14 @@ namespace BlurredLines.Processing
             kernelCalculator = new GaussianBlurKernelCalculator();
         }
 
+        /// <summary>
+        ///     Apply a gaussian blur filter with the given <see cref="gaussKernelSize"/> and <see cref="sigma"/> to the given <see cref="image"/>.
+        /// </summary>
+        /// <param name="image"></param>
+        /// <param name="gaussKernelSize"></param>
+        /// <param name="sigma"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public Image<Rgb24> Apply(Image<Rgb24> image, int gaussKernelSize, double sigma)
         {
             var gaussianKernel = kernelCalculator.CalculateOneDimensionalKernel(gaussKernelSize, sigma);
@@ -53,15 +64,15 @@ namespace BlurredLines.Processing
             logger.Debug("Start creating context, command queue and buffers.");
             using (var context = CreateContextOrThrow(devices))
             using (var commandQueue = CreateCommandQueueOrThrow(context, device))
-            // input buffers
+                // input buffers
             using (var redPixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
             using (var greenPixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
             using (var bluePixelsBuffer = CreateBufferOrThrow<byte>(context, MemFlags.ReadOnly, pixels.Length))
-            // output buffers
+                // output buffers
             using (var redPixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
             using (var greenPixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
             using (var bluePixelsOutBuffer = CreateBufferOrThrow<byte>(context, MemFlags.WriteOnly, pixels.Length))
-            // gaussian kernel
+                // gaussian kernel
             using (var gaussianKernelBuffer = CreateBufferOrThrow<float>(context, MemFlags.ReadOnly, gaussKernelSize))
             {
                 logger.Debug("Created context, command queue and buffers.");
@@ -115,7 +126,7 @@ namespace BlurredLines.Processing
                     .ThrowOnError();
                 writeEvents.Add(gaussianKernelEvent);
 
-                Cl.WaitForEvents((uint)writeEvents.Count, writeEvents.ToArray()).ThrowOnError();
+                Cl.WaitForEvents((uint) writeEvents.Count, writeEvents.ToArray()).ThrowOnError();
 
                 logger.Debug("Wrote data to all buffers.");
 
@@ -127,7 +138,7 @@ namespace BlurredLines.Processing
                     logger.Debug("Building OpenCL program.");
                     BuildProgramOrThrow(program,
                         1,
-                        new[] { device },
+                        new[] {device},
                         $"-D IMAGE_WIDTH={image.Width}",
                         $"-D IMAGE_HEIGHT={image.Height}",
                         $"-D GAUSS_KERNEL_SIZE={gaussKernelSize}",
@@ -205,9 +216,9 @@ namespace BlurredLines.Processing
                                 Cl.EnqueueNDRangeKernel(commandQueue,
                                         kernel,
                                         2,
-                                        new[] { horizontalOffset, verticalOffset },
-                                        new[] { new IntPtr(maxWorkItemSizes.x), new IntPtr(maxWorkItemSizes.y) },
-                                        new[] { new IntPtr(horizontalLocalSize), new IntPtr(verticalLocalSize) },
+                                        new[] {horizontalOffset, verticalOffset},
+                                        new[] {new IntPtr(maxWorkItemSizes.x), new IntPtr(maxWorkItemSizes.y)},
+                                        new[] {new IntPtr(horizontalLocalSize), new IntPtr(verticalLocalSize)},
                                         0,
                                         null,
                                         out var kernelEvent)
@@ -219,7 +230,7 @@ namespace BlurredLines.Processing
 
 
                         logger.Debug("Waiting for {NumberOfKernelEvents} kernels to complete.", kernelEvents.Count);
-                        Cl.WaitForEvents((uint)kernelEvents.Count, kernelEvents.ToArray())
+                        Cl.WaitForEvents((uint) kernelEvents.Count, kernelEvents.ToArray())
                             .ThrowOnError();
                         logger.Debug("Kernel events finished.");
 
@@ -263,7 +274,7 @@ namespace BlurredLines.Processing
                             .ThrowOnError();
                         readEvents.Add(bluePixelsBufferReadEvent);
 
-                        Cl.WaitForEvents((uint)readEvents.Count, readEvents.ToArray());
+                        Cl.WaitForEvents((uint) readEvents.Count, readEvents.ToArray());
                         logger.Debug("Successfully read result from OpenCL buffers.");
 
                         logger.Debug("Converting data to pixels.");
@@ -282,28 +293,36 @@ namespace BlurredLines.Processing
             }
         }
 
-        private static int GetLocalSize(int maxWorkGroupSize, Kernel kernel, Device device)
+        private int GetLocalSize(int maxWorkGroupSize, Kernel kernel, Device device)
         {
             var preferredWorkGroupSizeMultiple = GetPreferredWorkGroupSizeMultiple(kernel, device);
-            var result = (int)Math.Sqrt(preferredWorkGroupSizeMultiple);
+            var result = (int) Math.Sqrt(preferredWorkGroupSizeMultiple);
 
             // Ensure that the maxWorkGroupSize is evenly divisible by the local size
-            while (maxWorkGroupSize % result != 0)
+            while (result > 0 && maxWorkGroupSize % result != 0)
             {
-                result--;
+                --result;
             }
 
-            return result;
+            if (result > 0)
+            {
+                return result;
+            }
+
+            logger.Error(
+                "Could not find a work group size that divides max work group size {MaxWorkGroupSize} evenly.",
+                maxWorkGroupSize);
+            throw new InvalidOperationException("Could not find a work group size that divides max work group size");
         }
 
         private static int GetPreferredWorkGroupSizeMultiple(Kernel kernel, Device device)
         {
-            ErrorCode error;
             int preferredWorkGroupSizeMultiple;
             // CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE == (KernelWorkGroupInfo)0x11B3
             using (var kernelWorkGroupInfo =
-                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo)0x11B3, out error))
+                Cl.GetKernelWorkGroupInfo(kernel, device, (KernelWorkGroupInfo) 0x11B3, out var error))
             {
+                error.ThrowOnError();
                 preferredWorkGroupSizeMultiple = kernelWorkGroupInfo.CastTo<int>();
             }
 
@@ -388,7 +407,7 @@ namespace BlurredLines.Processing
 
         private static OpenCL.Net.Program CreateProgramWithSourceOrThrow(Context context, string programSource)
         {
-            var program = Cl.CreateProgramWithSource(context, 1, new string[] { programSource }, null, out var error);
+            var program = Cl.CreateProgramWithSource(context, 1, new string[] {programSource}, null, out var error);
             error.ThrowOnError();
             return program;
         }

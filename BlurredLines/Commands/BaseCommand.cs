@@ -8,7 +8,7 @@ namespace BlurredLines.Commands
     {
         protected readonly Logger logger;
 
-        public BaseCommand(BaseOptions options)
+        protected BaseCommand(BaseOptions options)
         {
             var loggerConfig = new LoggerConfiguration()
                 .WriteTo.Console(theme: AnsiConsoleTheme.Code)

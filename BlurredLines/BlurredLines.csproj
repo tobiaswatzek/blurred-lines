@@ -97,9 +97,9 @@
         <Compile Include="Commands\InfoCommand.cs" />
         <Compile Include="Commands\InfoOptions.cs" />
         <Compile Include="Commands\BaseOptions.cs" />
+        <Compile Include="Processing\ErrorCodeExtensions.cs" />
         <Compile Include="Processing\GaussianBlur.cs" />
         <Compile Include="Processing\Info\DeviceInfoResult.cs" />
-        <Compile Include="Processing\Info\ErrorCodeExtensions.cs" />
         <Compile Include="Processing\Info\PlatformInfoResult.cs" />
         <Compile Include="Processing\Info\SystemInformation.cs" />
         <Compile Include="Program.cs" />
@@ -125,9 +125,6 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Kernel Include="Kernels\gaussianBlur.cl">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Kernel>
-      <Kernel Include="Kernels\test.cl">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </Kernel>
     </ItemGroup>

@@ -69,7 +69,6 @@ namespace BlurredLines.Calculation
             allSamples.Add((outsideSamplesRight, 0));
 
             // renormalize kernel and round to 6 decimals
-
             allSamples = allSamples.Select(sample =>
                 {
                     sample.weight = Math.Round(sample.weight / weightSum, 6);
@@ -85,14 +84,14 @@ namespace BlurredLines.Calculation
         }
 
 
-        private double GaussianDistribution(double x, double mu, double sigma)
+        private static double GaussianDistribution(double x, double mu, double sigma)
         {
             var d = x - mu;
             var n = 1 / (Math.Sqrt(2 * Math.PI) * sigma);
             return Math.Exp(-d * d / (2 * sigma * sigma)) * n;
         }
 
-        private IList<(double x, double y)> SampleInterval(Func<double, double> f,
+        private static IList<(double x, double y)> SampleInterval(Func<double, double> f,
             double minInclusive,
             double maxInclusive,
             int sampleCount)
@@ -111,7 +110,7 @@ namespace BlurredLines.Calculation
             return result;
         }
 
-        private double IntegrateSimpson(IList<(double x, double y)> samples)
+        private static double IntegrateSimpson(IList<(double x, double y)> samples)
         {
             var result = samples.First().y + samples.Last().y;
 
